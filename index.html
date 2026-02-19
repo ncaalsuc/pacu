@@ -229,11 +229,11 @@
 
     var ggl = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-    }).addTo(map);
+    });
 
     var osm = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
       attribution: '&copy; <a href="http://www.idesa.gob.ar/2021/03/25/mas-mapas-xyz-tiles/">Google Hybrid</a>'
-    });
+    }).addTo(map);
 
     var gglmps = L.tileLayer('https://mt1.google.com/vt/lyrs=r&x={x}&y={y}&z={z}', {
       attribution: '&copy; <a href="http://www.idesa.gob.ar/2021/03/25/mas-mapas-xyz-tiles/">Google Maps</a>'
@@ -929,3 +929,4 @@
   </script>
 </body>
 </html>
+
