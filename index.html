@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Geoportal tfm</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
+  <link href="https://unpkg.com/leaflet.fullscreen@latest/Control.FullScreen.css" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+
+  <style>
+    body { margin:0; padding:0; font-family:Arial,sans-serif; background-color:#2D3748; color:white; }
+    #header { background-color:#1E3A8A; color:white; padding:10px; text-align:center; }
+    #map-container { display:flex; flex-wrap:nowrap; }
+    #map { width:60%; height:800px; position:relative; }
+    #controls { width:40%; padding:20px; background-color:#2D3748; color:white; overflow-y:auto; max-height:800px; }
+
+    #summary { background-color:#4A5568; padding:12px; margin-bottom:16px; border-radius:12px; text-align:center; box-shadow:0 8px 18px rgba(0,0,0,0.25); }
+    #summary h2 { margin:0; font-size:18px; }
+    #summary p { margin:6px 0; font-size:34px; font-weight:bold; }
+
+    #chart-container, #filters, #concesion-panel {
+      background-color:#4A5568;
+      padding:14px;
+      margin-bottom:16px;
+      border-radius:12px;
+      box-shadow:0 8px 18px rgba(0,0,0,0.25);
+    }
+    #chart-container { height:260px; position:relative; }
+    #chart { width:100% !important; height:100% !important; }
+
+    #filters h3 { margin:0; }
+    #filters button {
+      width:100%;
+      margin:5px 0;
+      padding:10px;
+      background-color:#38B2AC;
+      color:white;
+      border:none;
+      border-radius:5px;
+      cursor:pointer;
+    }
+    #filters button:hover { background-color:#319795; }
+
+    #resetRangeButton {
+      background-color:#CBD5E0;
+      color:#1A202C;
+      font-weight:bold;
+      display:none;
+    }
+    #resetRangeButton:hover { background-color:#E2E8F0; }
+
+    .area-tooltip { background:rgba(0,0,0,0.5); border:none; color:#f8d5e4; }
+
+    #concesion-panel h3 { margin:0 0 10px 0; }
+
+    .btnXLS {
+      width:100%;
+      margin-top:10px;
+      padding:10px;
+      background-color:#38B2AC;
+      color:white;
+      border:none;
+      border-radius:8px;
+      cursor:pointer;
+      font-weight:bold;
+    }
+    .btnXLS:hover{ background-color:#319795; }
+
+    #totalVisibleBox{
+      margin-top:12px;
+      text-align:center;
+      font-size:18px;
+      font-weight:bold;
+      color:#FF6B6B;
+    }
+
+    #listaConcesiones{
+      margin-top:12px;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+    }
+    .cardPoint{
+      background:rgba(255,255,255,0.08);
+      border:1px solid rgba(255,255,255,0.10);
+      border-radius:12px;
+      padding:12px;
+      cursor:pointer;
+      transition:transform .12s ease, background .12s ease;
+    }
+    .cardPoint:hover{ background:rgba(255,255,255,0.12); transform:translateY(-1px); }
+    .cardPoint b{ color:#fff; }
+    .muted { color: rgba(255,255,255,0.8); font-size: 12px; }
+  </style>
+</head>
+
+<body>
+  <div id="header">
+    <h1>"Geoportal para el monitoreo de incendios forestales en la Reserva de la Biósfera Maya"</h1>
+    <h2>Proyecto desarrollado por: PACUNAM</h2>
+    <p>Fuente:
+      <a href="https://www.earthdata.nasa.gov/learn/find-data/near-real-time/firms" target="_blank"
+         style="color:white;text-decoration:underline;">FIRMS</a>
+    </p>
+  </div>
+
+  <div id="map-container">
+    <div id="map"></div>
+
+    <div id="controls">
+      <!-- SUMMARY -->
+      <div id="summary">
+        <h2>Cantidad de puntos de calor</h2>
+        <p><span id="total-points">0</span></p>
+
+        <div style="display:grid; gap:8px; margin-top:10px; text-align:left;">
+          <div style="background:rgba(0,0,0,0.18); padding:10px; border-radius:10px;">
+            🌲 Dentro de <b>Concesiones</b>: <span id="count-concessions" style="font-weight:bold;">0</span>
+          </div>
+          <div style="background:rgba(0,0,0,0.18); padding:10px; border-radius:10px;">
+            🌿 Dentro de <b>RBM</b>: <span id="count-rbm" style="font-weight:bold;">0</span>
+          </div>
+          <div style="background:rgba(0,0,0,0.18); padding:10px; border-radius:10px;">
+            🇬🇹 En <b>Guatemala</b>: <span id="count-gt" style="font-weight:bold;">0</span>
+          </div>
+          <div class="muted" style="padding:0 4px;">
+            Nota: Concesiones con puntos de calor se resaltan en <b style="color:#ff4d4d;">rojo</b>.
+          </div>
+        </div>
+      </div>
+
+      <!-- GRÁFICO PRINCIPAL (por día) -->
+      <div id="chart-container">
+        <canvas id="chart"></canvas>
+      </div>
+
+      <!-- FILTROS -->
+      <div id="filters">
+        <label for="clusterCheckbox">Agrupar puntos de calor</label>
+        <input type="checkbox" id="clusterCheckbox" name="clusterCheckbox" checked><br><br>
+
+        <h3>Filtrar Rápido</h3>
+        <button id="todayButton">Hoy</button><br><br>
+        <button id="last48HoursButton">Últimas 48 Horas</button><br><br>
+        <button id="last72HoursButton">Últimas 72 Horas</button><br><br>
+        <button id="last8DaysButton">Últimos 8 Días</button><br><br>
+
+        <button id="resetRangeButton">🔙 Volver al rango</button>
+      </div>
+
+      <!-- PANEL: GRÁFICO POR CONCESIÓN + EXPORT EXCEL -->
+      <div id="concesion-panel">
+        <h3>🔥 Gráfico de puntos de calor por Concesión</h3>
+
+        <div style="height:260px; position:relative;">
+          <canvas id="chartConcesiones"></canvas>
+        </div>
+
+        <!-- ✅ Botones Excel según ámbito -->
+        <button id="btnXLSConcesiones" class="btnXLS">📥 Descargar Excel (Concesiones)</button>
+        <button id="btnXLSRBM" class="btnXLS" style="margin-top:8px;">📥 Descargar Excel (RBM)</button>
+        <button id="btnXLSGT" class="btnXLS" style="margin-top:8px;">📥 Descargar Excel (Guatemala)</button>
+
+        <div id="totalVisibleBox">Total dentro de Concesiones: <span id="totalVisible">0</span></div>
+
+        <div id="listaConcesiones"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- ✅ SheetJS para exportar Excel -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <script src="https://unpkg.com/leaflet.featuregroup.subgroup@1.0.2/dist/leaflet.featuregroup.subgroup.js"></script>
+  <script src="https://unpkg.com/leaflet.fullscreen@latest/Control.FullScreen.js"></script>
+  <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+  <script src="https://unpkg.com/leaflet.geometryutil"></script>
+  <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
+
+  <script>
+    /* =========================
+       Tooltip área (Draw)
+    ========================== */
+    function createAreaTooltip(layer) {
+      if (layer.areaTooltip) return;
+
+      layer.areaTooltip = L.tooltip({
+        permanent: true,
+        direction: 'center',
+        className: 'area-tooltip'
+      });
+
+      layer.on('remove', function() { layer.areaTooltip.remove(); });
+      layer.on('add', function() {
+        updateAreaTooltip(layer);
+        layer.areaTooltip.addTo(map);
+      });
+
+      if (map.hasLayer(layer)) {
+        updateAreaTooltip(layer);
+        layer.areaTooltip.addTo(map);
+      }
+    }
+
+    function updateAreaTooltip(layer) {
+      var area = L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]);
+      var readableArea = L.GeometryUtil.readableArea(area, true);
+      var latlng = layer.getCenter();
+      layer.areaTooltip.setContent(readableArea).setLatLng(latlng);
+    }
+
+    /* =========================
+       MAPA
+    ========================== */
+    var map = L.map('map', {
+      fullscreenControl: true,
+      fullscreenControlOptions: { position: 'topright' },
+      maxBounds: [[6.358285,-97.674955],[23.563182,-73.021632]],
+      minZoom: 6
+    }).setView([16.939224, -90.231038], 8.50);
+
+    var ggl = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    }).addTo(map);
+
+    var osm = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+      attribution: '&copy; <a href="http://www.idesa.gob.ar/2021/03/25/mas-mapas-xyz-tiles/">Google Hybrid</a>'
+    });
+
+    var gglmps = L.tileLayer('https://mt1.google.com/vt/lyrs=r&x={x}&y={y}&z={z}', {
+      attribution: '&copy; <a href="http://www.idesa.gob.ar/2021/03/25/mas-mapas-xyz-tiles/">Google Maps</a>'
+    });
+
+    var lyrIR  = L.imageOverlay('https://storage.googleapis.com/meteotech/data/goes/a_goes16_13.gif?'+(Math.random()*1000000).toFixed(0), [[35,-120],[0,-50]], {opacity:.6});
+    var lyrVI  = L.imageOverlay('https://storage.googleapis.com/meteotech/data/goes/a_goes16_01.gif?'+(Math.random()*1000000).toFixed(0), [[35,-120],[0,-50]], {opacity:.6});
+
+    var capas = {
+      '<big> 🌏 Google Hybrid</big>': osm,
+      '<big> 🌐 Open street map</big>': ggl,
+      '<big> 🗺️ Google Maps</big>': gglmps
+    };
+    var AA = {
+      '<big> 🛰️ Satélite IR</big>': lyrIR,
+      '<big> 🛰️ Satélite VIS</big>': lyrVI
+    };
+    L.control.layers(capas, AA).addTo(map);
+
+    function getColor(d) {
+      return d > 350 ? '#FF0000' : d > 300 ? '#FF4500' : '#FFFF00';
+    }
+    function formatAcqTime(acqTime) {
+      var date = new Date(acqTime);
+      return date.toLocaleString();
+    }
+    function formatCoordinate(coordinate) { return Number(coordinate).toFixed(4); }
+
+    /* =========================
+       DATASETS
+    ========================== */
+    var allData = null;
+    var rangeData = null;
+    var mapData   = null;
+    var currentRangeHours = 24;
+
+    var markersToday = null;
+    var markersOthers = null;
+
+    /* =========================
+       CONTEO ESPACIAL (Concesiones / RBM / Guatemala)
+    ========================== */
+    var concesionesFeatures = [];
+    var concesionesIndex = [];
+
+    var rbmFeatures = [];
+    var rbmIndex = [];
+
+    var gtFeature = null;
+    var GT_GEOJSON_URL = "https://raw.githubusercontent.com/johan/world.geo.json/master/countries/GTM.geo.json";
+
+    function buildBBoxIndex(features) {
+      return (features || []).map(f => ({ feature: f, bbox: turf.bbox(f) }));
+    }
+    function bboxContainsPoint(bbox, lon, lat) {
+      return lon >= bbox[0] && lon <= bbox[2] && lat >= bbox[1] && lat <= bbox[3];
+    }
+    function pointInFeature(lon, lat, feature) {
+      if (!feature) return false;
+      try { return turf.booleanPointInPolygon(turf.point([lon, lat]), feature); }
+      catch (e) { return false; }
+    }
+
+    function getConcessionName(feature){
+      var p = feature && feature.properties ? feature.properties : {};
+      return p.ZON_NOM || p.NOMBRE || p.Nombre || p.NAME || p.name || p.CONCESION || p.Concesion || p.concesion || "Concesión";
+    }
+
+    function getConcessionNameFromPoint(lon, lat) {
+      if (!concesionesIndex.length) return null;
+      var pt = turf.point([lon, lat]);
+
+      for (var i = 0; i < concesionesIndex.length; i++) {
+        var c = concesionesIndex[i];
+        if (!bboxContainsPoint(c.bbox, lon, lat)) continue;
+        try {
+          if (turf.booleanPointInPolygon(pt, c.feature)) return getConcessionName(c.feature);
+        } catch(e){}
+      }
+      return null;
+    }
+    function pointInAnyConcession(lon, lat) { return !!getConcessionNameFromPoint(lon, lat); }
+
+    function pointInAnyRBM(lon, lat) {
+      if (!rbmIndex.length) return false;
+      var pt = turf.point([lon, lat]);
+
+      for (var i = 0; i < rbmIndex.length; i++) {
+        var r = rbmIndex[i];
+        if (!bboxContainsPoint(r.bbox, lon, lat)) continue;
+        try {
+          if (turf.booleanPointInPolygon(pt, r.feature)) return true;
+        } catch(e){}
+      }
+      return false;
+    }
+
+    // último conteo (para UI)
+    var lastCounts = { total:0, con:0, rbm:0, gt:0 };
+
+    function updateSpatialCounters(data) {
+      var countCon = 0, countRBM = 0, countGT = 0;
+
+      if (!data || !data.features || !data.features.length) {
+        document.getElementById('count-concessions').textContent = "0";
+        document.getElementById('count-rbm').textContent = "0";
+        document.getElementById('count-gt').textContent = "0";
+        lastCounts = { total:0, con:0, rbm:0, gt:0 };
+        return;
+      }
+
+      for (var i = 0; i < data.features.length; i++) {
+        var f = data.features[i];
+        if (!f.geometry || !f.geometry.coordinates) continue;
+
+        var lon = f.geometry.coordinates[0];
+        var lat = f.geometry.coordinates[1];
+
+        if (gtFeature && pointInFeature(lon, lat, gtFeature)) countGT++;
+        if (rbmIndex.length && pointInAnyRBM(lon, lat)) countRBM++;
+        if (concesionesIndex.length && pointInAnyConcession(lon, lat)) countCon++;
+      }
+
+      document.getElementById('count-concessions').textContent = countCon.toLocaleString();
+      document.getElementById('count-rbm').textContent = countRBM.toLocaleString();
+      document.getElementById('count-gt').textContent = countGT.toLocaleString();
+
+      lastCounts = {
+        total: (data.features || []).length,
+        con: countCon,
+        rbm: countRBM,
+        gt: countGT
+      };
+    }
+
+    /* =========================
+       CARGA PUNTOS (INAB VIIRS/MODIS VISTA)
+    ========================== */
+    async function loadAllData() {
+      var limit = 1000;
+      var offset = 0;
+      var allDataLocal = { type: "FeatureCollection", features: [] };
+      var fetchedData;
+
+      do {
+        fetchedData = await fetchData(offset, limit);
+        if (fetchedData && fetchedData.features) {
+          allDataLocal.features = allDataLocal.features.concat(fetchedData.features);
+        }
+        offset += limit;
+      } while (fetchedData && fetchedData.features && fetchedData.features.length === limit);
+
+      return allDataLocal;
+    }
+
+    function fetchData(offset, limit) {
+      var url = `https://sig.inab.gob.gt/server/rest/services/Hosted/Satellite_VIIRS_MODIS_Vista/FeatureServer/0/query?where=1%3D1&outFields=*&outSR=4326&f=geojson&resultOffset=${offset}&resultRecordCount=${limit}`;
+      return fetch(url).then(r => r.json());
+    }
+
+    function filterDataByRelativeTime(data, hours) {
+      var now = new Date();
+      var pastDate = new Date(now.getTime() - (hours * 60 * 60 * 1000));
+      return {
+        type: "FeatureCollection",
+        features: (data.features || []).filter(feature => {
+          var acqDate = new Date(feature.properties.acq_time);
+          return acqDate >= pastDate && acqDate <= now;
+        })
+      };
+    }
+
+    function filterDataByDate(data, date) {
+      return {
+        type: "FeatureCollection",
+        features: (data.features || []).filter(feature => {
+          var acqDate = new Date(feature.properties.acq_time).toISOString().split('T')[0];
+          return acqDate === date;
+        })
+      };
+    }
+
+    function updateChart(data) {
+      var dateCounts = (data.features || []).reduce((acc, feature) => {
+        var date = new Date(feature.properties.acq_time).toISOString().split('T')[0];
+        acc[date] = (acc[date] || 0) + 1;
+        return acc;
+      }, {});
+
+      var sortedDates = Object.keys(dateCounts).sort((a,b) => new Date(a) - new Date(b));
+      var sortedCounts = sortedDates.map(d => dateCounts[d]);
+
+      chart.data.labels = sortedDates;
+      chart.data.datasets[0].data = sortedCounts;
+      chart.update();
+    }
+
+    function updateSummary(total) {
+      document.getElementById('total-points').textContent = total.toLocaleString();
+    }
+
+    /* =========================
+       Resaltar concesiones con puntos (rojo)
+    ========================== */
+    var concesionesLayer = null;
+    var concessionHeatCounts = {};
+
+    function concesionStyle(feature){
+      var name = getConcessionName(feature);
+      var has = (concessionHeatCounts[name] || 0) > 0;
+      if (has) return { color:'#ff2d2d', weight:3, fillOpacity:0.12 };
+      return { color:'cyan', weight:1, fillOpacity:0.00 };
+    }
+    function updateConcessionStylesFromCounts(countsMap){
+      concessionHeatCounts = countsMap || {};
+      if (concesionesLayer) concesionesLayer.setStyle(concesionStyle);
+    }
+
+    /* =========================
+       Panel concesión: gráfico + listado
+    ========================== */
+    var chartConcesiones = null;
+
+    function actualizarGraficoConcesiones(data){
+      if (!data || !data.features) return;
+
+      var conteo = {};
+      var totalDentroConcesiones = 0;
+      var listItems = [];
+
+      data.features.forEach(f => {
+        if (!f.geometry || !f.geometry.coordinates) return;
+
+        // OJO: el GeoJSON ya trae latitude/longitude, pero usamos geometry como fuente robusta
+        var lon = f.geometry.coordinates[0];
+        var lat = f.geometry.coordinates[1];
+
+        var nombre = getConcessionNameFromPoint(lon, lat);
+        if (!nombre) return;
+
+        conteo[nombre] = (conteo[nombre] || 0) + 1;
+        totalDentroConcesiones++;
+
+        listItems.push({
+          concesion: nombre,
+          fecha: formatAcqTime((f.properties || {}).acq_time),
+          fechaEpoch: new Date((f.properties || {}).acq_time).getTime(),
+          lat: lat,
+          lon: lon
+        });
+      });
+
+      updateConcessionStylesFromCounts(conteo);
+
+      var etiquetas = Object.keys(conteo).sort((a,b)=> (conteo[b]||0)-(conteo[a]||0));
+      var valores = etiquetas.map(k => conteo[k]);
+
+      if (chartConcesiones) chartConcesiones.destroy();
+      var ctx = document.getElementById("chartConcesiones").getContext("2d");
+
+      chartConcesiones = new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels: etiquetas,
+          datasets: [{
+            label: "Puntos",
+            data: valores,
+            backgroundColor: "rgba(255,99,132,0.55)",
+            borderColor: "rgba(255,99,132,1)",
+            borderWidth: 1,
+            borderRadius: 10
+          }]
+        },
+        options: {
+          indexAxis: "y",
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display:false } },
+          scales: {
+            x: { beginAtZero:true, ticks:{ color:"rgba(255,255,255,0.85)" }, grid:{ color:"rgba(255,255,255,0.10)" } },
+            y: { beginAtZero:true, ticks:{ color:"rgba(255,255,255,0.85)" }, grid:{ color:"rgba(255,255,255,0.06)" } }
+          }
+        }
+      });
+
+      document.getElementById("totalVisible").innerText = totalDentroConcesiones.toLocaleString();
+
+      var listaDiv = document.getElementById("listaConcesiones");
+      listaDiv.innerHTML = "";
+
+      listItems.sort((a,b)=> b.fechaEpoch - a.fechaEpoch);
+
+      var maxItems = Math.min(50, listItems.length);
+      for (var i=0; i<maxItems; i++){
+        (function(item){
+          var card = document.createElement("div");
+          card.className = "cardPoint";
+          card.innerHTML = `
+            🔥 <b>Concesión:</b> ${item.concesion}<br>
+            <b>Fecha y hora:</b> ${item.fecha}<br>
+            <b>Lat:</b> ${item.lat.toFixed(5)} &nbsp; <b>Lon:</b> ${item.lon.toFixed(5)}
+          `;
+          card.addEventListener("click", function(){
+            map.flyTo([item.lat, item.lon], 14);
+          });
+          listaDiv.appendChild(card);
+        })(listItems[i]);
+      }
+
+      if (listItems.length === 0){
+        listaDiv.innerHTML = `<div class="cardPoint">No hay puntos dentro de concesiones en el rango actual.</div>`;
+      }
+    }
+
+    /* =========================
+       ✅ Exportar Excel (XLSX) por ámbito
+       Campos solicitados:
+       latitude, longitude, acq_time, satellite, depto, municipio, gtm_x, gtm_y
+========================= */
+    function fmtDateForExcel(v){
+      if (!v) return "";
+      try { return new Date(v).toLocaleString(); } catch(e){ return String(v); }
+    }
+
+    function featureToRow(f){
+      var p = f.properties || {};
+      // prioridad: atributos propios (latitude/longitude) y fallback a geometry
+      var lat = (p.latitude !== undefined && p.latitude !== null) ? p.latitude : (f.geometry?.coordinates?.[1]);
+      var lon = (p.longitude !== undefined && p.longitude !== null) ? p.longitude : (f.geometry?.coordinates?.[0]);
+
+      return {
+        latitude:  (lat !== undefined ? Number(lat) : ""),
+        longitude: (lon !== undefined ? Number(lon) : ""),
+        acq_time:  fmtDateForExcel(p.acq_time),
+        satellite: (p.satellite ?? ""),
+        Depto:     (p.depto ?? ""),
+        MUNICIPIO: (p.municipio ?? ""),
+        gtm_x:     (p.gtm_x ?? ""),
+        gtm_y:     (p.gtm_y ?? "")
+      };
+    }
+
+    function filterFeaturesByScope(data, scope){
+      if (!data || !data.features) return [];
+      var feats = data.features;
+
+      if (scope === "concesiones"){
+        return feats.filter(f => {
+          var p = f.properties || {};
+          var lon = (p.longitude !== undefined && p.longitude !== null) ? p.longitude : (f.geometry?.coordinates?.[0]);
+          var lat = (p.latitude  !== undefined && p.latitude  !== null) ? p.latitude  : (f.geometry?.coordinates?.[1]);
+          if (lon === undefined || lat === undefined) return false;
+          return pointInAnyConcession(Number(lon), Number(lat));
+        });
+      }
+
+      if (scope === "rbm"){
+        return feats.filter(f => {
+          var p = f.properties || {};
+          var lon = (p.longitude !== undefined && p.longitude !== null) ? p.longitude : (f.geometry?.coordinates?.[0]);
+          var lat = (p.latitude  !== undefined && p.latitude  !== null) ? p.latitude  : (f.geometry?.coordinates?.[1]);
+          if (lon === undefined || lat === undefined) return false;
+          return pointInAnyRBM(Number(lon), Number(lat));
+        });
+      }
+
+      // Guatemala (si no carga gtFeature, descarga todo el rango)
+      return feats.filter(f => {
+        var p = f.properties || {};
+        var lon = (p.longitude !== undefined && p.longitude !== null) ? p.longitude : (f.geometry?.coordinates?.[0]);
+        var lat = (p.latitude  !== undefined && p.latitude  !== null) ? p.latitude  : (f.geometry?.coordinates?.[1]);
+        if (lon === undefined || lat === undefined) return false;
+        if (!gtFeature) return true;
+        return pointInFeature(Number(lon), Number(lat), gtFeature);
+      });
+    }
+
+    function downloadXLSX(scope){
+      var data = (mapData || rangeData);
+      if (!data || !data.features || !data.features.length){
+        alert("No hay datos para descargar en el rango actual.");
+        return;
+      }
+
+      // evita descargas vacías por no haber cargado polígonos todavía
+      if (scope === "concesiones" && !concesionesIndex.length){
+        alert("Aún no termina de cargar Concesiones. Espera 2-3 segundos y prueba de nuevo.");
+        return;
+      }
+      if (scope === "rbm" && !rbmIndex.length){
+        alert("Aún no termina de cargar RBM. Espera 2-3 segundos y prueba de nuevo.");
+        return;
+      }
+
+      var feats = filterFeaturesByScope(data, scope);
+      if (!feats.length){
+        alert("No hay puntos para ese ámbito en el rango actual.");
+        return;
+      }
+
+      var rows = feats.map(featureToRow);
+
+      var ws = XLSX.utils.json_to_sheet(rows, {
+        header: ["latitude","longitude","acq_time","satellite","Depto","MUNICIPIO","gtm_x","gtm_y"]
+      });
+
+      ws["!cols"] = [
+        { wch: 10 }, { wch: 11 }, { wch: 22 }, { wch: 10 },
+        { wch: 18 }, { wch: 18 }, { wch: 12 }, { wch: 12 }
+      ];
+
+      var wb = XLSX.utils.book_new();
+      var sheetName = (scope === "concesiones") ? "Concesiones" : (scope === "rbm") ? "RBM" : "Guatemala";
+      XLSX.utils.book_append_sheet(wb, ws, sheetName);
+
+      var hours = currentRangeHours || 24;
+      var now = new Date();
+      var y = now.getFullYear();
+      var m = String(now.getMonth()+1).padStart(2,"0");
+      var d = String(now.getDate()).padStart(2,"0");
+      var hh = String(now.getHours()).padStart(2,"0");
+      var mm = String(now.getMinutes()).padStart(2,"0");
+
+      var filename = `puntos_calor_${sheetName}_${hours}h_${y}${m}${d}_${hh}${mm}.xlsx`;
+      XLSX.writeFile(wb, filename);
+    }
+
+    document.getElementById("btnXLSConcesiones").addEventListener("click", function(){ downloadXLSX("concesiones"); });
+    document.getElementById("btnXLSRBM").addEventListener("click", function(){ downloadXLSX("rbm"); });
+    document.getElementById("btnXLSGT").addEventListener("click", function(){ downloadXLSX("gt"); });
+
+    /* =========================
+       MAPA: dibujar puntos
+    ========================== */
+    function updateMap(data, useCluster) {
+      mapData = data;
+
+      if (markersToday) map.removeLayer(markersToday);
+      if (markersOthers) map.removeLayer(markersOthers);
+
+      if (useCluster) {
+        markersToday = L.markerClusterGroup();
+        markersOthers = L.markerClusterGroup();
+      } else {
+        markersToday = L.layerGroup();
+        markersOthers = L.layerGroup();
+      }
+
+      var today = new Date().toISOString().split('T')[0];
+
+      var todayData = {
+        type: "FeatureCollection",
+        features: (data.features || []).filter(f => new Date(f.properties.acq_time).toISOString().split('T')[0] === today)
+      };
+
+      var otherData = {
+        type: "FeatureCollection",
+        features: (data.features || []).filter(f => new Date(f.properties.acq_time).toISOString().split('T')[0] !== today)
+      };
+
+      function pointLayer(feature, latlng){
+        return L.circleMarker(latlng, {
+          radius: 8,
+          fillColor: getColor(feature.properties.bright_ti4),
+          color: getColor(feature.properties.bright_ti4),
+          weight: 1,
+          opacity: 1,
+          fillOpacity: 0.8
+        });
+      }
+
+      function bindPopup(feature, layer){
+        var p = feature.properties || {};
+        var popupContent = `
+          <strong>Hora de detección:</strong> ${formatAcqTime(p.acq_time)}<br>
+          <strong>Latitud:</strong> ${formatCoordinate(p.latitude ?? feature.geometry.coordinates[1])}<br>
+          <strong>Longitud:</strong> ${formatCoordinate(p.longitude ?? feature.geometry.coordinates[0])}<br>
+          <strong>Categoría:</strong> ${p.concat_2 || 'N/D'}<br>
+          <strong>Depto:</strong> ${p.depto || 'N/D'}<br>
+          <strong>Municipio:</strong> ${p.municipio || 'N/D'}<br>
+          <strong>Satélite:</strong> ${p.satellite || 'N/D'}
+        `;
+        layer.bindPopup(popupContent);
+      }
+
+      L.geoJSON(todayData, { pointToLayer: pointLayer, onEachFeature: bindPopup }).addTo(markersToday);
+      L.geoJSON(otherData, { pointToLayer: pointLayer, onEachFeature: bindPopup }).addTo(markersOthers);
+
+      map.addLayer(markersToday);
+      map.addLayer(markersOthers);
+
+      updateSummary((data.features || []).length);
+      updateSpatialCounters(data);
+      actualizarGraficoConcesiones(data);
+    }
+
+    /* =========================
+       Chart principal (por día)
+    ========================== */
+    var selectedBarIndex = null;
+
+    var chart = new Chart(document.getElementById('chart'), {
+      type: 'bar',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'Puntos',
+          data: [],
+          borderWidth: 0,
+          borderRadius: 10,
+          borderSkipped: false,
+          barThickness: 18,
+          maxBarThickness: 22,
+          backgroundColor: function(ctx){
+            var i = ctx.dataIndex;
+            if (selectedBarIndex !== null && i === selectedBarIndex) return 'rgba(56, 178, 172, 0.95)';
+            return 'rgba(56, 178, 172, 0.55)';
+          },
+          hoverBackgroundColor: 'rgba(56, 178, 172, 0.9)'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        layout: { padding: { top: 8, right: 10, bottom: 6, left: 10 } },
+        plugins: {
+          legend: { display: false },
+          title: { display: true, text:"Puntos por día (rango actual)", color: 'white', font: { size: 14, weight: 'bold' }, padding: { bottom: 8 } },
+          tooltip: {
+            backgroundColor: 'rgba(0,0,0,0.8)',
+            titleColor: '#fff',
+            bodyColor: '#fff',
+            padding: 10,
+            displayColors: false,
+            callbacks: { label: (ctx) => ' ' + ctx.parsed.y.toLocaleString() + ' puntos' }
+          }
+        },
+        scales: {
+          x: { grid: { display:false }, ticks:{ color:'rgba(255,255,255,0.85)', maxTicksLimit:6, font:{ size:11 } } },
+          y: {
+            beginAtZero:true,
+            grid:{ color:'rgba(255,255,255,0.10)' },
+            ticks:{ color:'rgba(255,255,255,0.85)', callback:(v)=>Number(v).toLocaleString() }
+          }
+        },
+        animation:{ duration:700 },
+        onClick: function(event, elements) {
+          if (elements.length > 0) {
+            selectedBarIndex = elements[0].index;
+            var date = this.data.labels[selectedBarIndex];
+
+            var filteredData = filterDataByDate(rangeData, date);
+            document.getElementById('resetRangeButton').style.display = 'block';
+
+            updateMap(filteredData, document.getElementById('clusterCheckbox').checked);
+            chart.update();
+          }
+        }
+      }
+    });
+
+    /* =========================
+       Rangos y controles
+    ========================== */
+    function applyRange(hours) {
+      currentRangeHours = hours;
+
+      rangeData = filterDataByRelativeTime(allData, hours);
+
+      selectedBarIndex = null;
+      document.getElementById('resetRangeButton').style.display = 'none';
+
+      updateChart(rangeData);
+      updateMap(rangeData, document.getElementById('clusterCheckbox').checked);
+
+      chart.update();
+    }
+
+    /* =========================
+       RBM + Concesiones (overlays)
+    ========================== */
+    var rbmLayer = L.geoJSON(null, {
+      style: function() { return { color:'blue', weight:1, fillOpacity:0 }; },
+      onEachFeature: function(feature, layer) {
+        var popupContent = `
+          <strong>Categoría:</strong> ${feature.properties.Categor_14 || 'N/D'}<br>
+          <strong>Nombre:</strong> ${feature.properties.NOMBRE_e_1 || 'N/D'}
+        `;
+        layer.bindPopup(popupContent);
+      }
+    });
+
+    concesionesLayer = L.geoJSON(null, {
+      style: concesionStyle,
+      onEachFeature: function(feature, layer) {
+        layer.bindPopup(`<strong>Concesión:</strong> ${getConcessionName(feature)}`);
+      }
+    });
+
+    fetch('https://raw.githubusercontent.com/nestorcaalsuc/RBM/main/RBM.geojson')
+      .then(r => r.json()).then(d => {
+        rbmLayer.addData(d);
+        rbmFeatures = (d && d.features) ? d.features : [];
+        rbmIndex = buildBBoxIndex(rbmFeatures);
+        if (mapData || rangeData) updateSpatialCounters(mapData || rangeData);
+      })
+      .catch(e => console.error('Error loading RBM GeoJSON:', e));
+
+    fetch('https://raw.githubusercontent.com/nestorcaalsuc/RBM/main/Concesiones.geojson')
+      .then(r => r.json()).then(d => {
+        concesionesLayer.addData(d);
+        concesionesFeatures = (d && d.features) ? d.features : [];
+        concesionesIndex = buildBBoxIndex(concesionesFeatures);
+
+        updateConcessionStylesFromCounts({});
+
+        if (mapData || rangeData) {
+          updateSpatialCounters(mapData || rangeData);
+          actualizarGraficoConcesiones(mapData || rangeData);
+        }
+      })
+      .catch(e => console.error('Error loading Concesiones GeoJSON:', e));
+
+    fetch(GT_GEOJSON_URL)
+      .then(r => r.json())
+      .then(d => {
+        if (d && d.type === "Feature") gtFeature = d;
+        else if (d && d.features && d.features.length) gtFeature = d.features[0];
+
+        if (mapData || rangeData) updateSpatialCounters(mapData || rangeData);
+      })
+      .catch(e => console.warn("No se pudo cargar Guatemala GeoJSON. Cambia GT_GEOJSON_URL si usas otra fuente.", e));
+
+    L.control.layers(null, {
+      "Concesiones Forestales": concesionesLayer,
+      "Límite RBM": rbmLayer
+    }).addTo(map);
+
+    concesionesLayer.addTo(map);
+    rbmLayer.addTo(map);
+
+    /* =========================
+       Draw control
+    ========================== */
+    var drawnItems = L.featureGroup().addTo(map);
+
+    map.addControl(new L.Control.Draw({
+      edit: { featureGroup: drawnItems, poly: { allowIntersection: false } },
+      draw: {
+        marker: true,
+        circle: true,
+        circlemarker: false,
+        rectangle: true,
+        polyline: true,
+        polygon: { allowIntersection: false, showArea: true }
+      }
+    }));
+
+    map.on(L.Draw.Event.CREATED, function(event) {
+      var layer = event.layer;
+      if (layer instanceof L.Polygon) createAreaTooltip(layer);
+      drawnItems.addLayer(layer);
+    });
+
+    map.on(L.Draw.Event.EDITED, function(event) {
+      event.layers.getLayers().forEach(function(layer) {
+        if (layer instanceof L.Polygon) updateAreaTooltip(layer);
+      });
+    });
+
+    /* =========================
+       INIT
+    ========================== */
+    loadAllData().then(data => {
+      allData = data;
+
+      applyRange(24);
+
+      document.getElementById('todayButton').addEventListener('click', () => applyRange(24));
+      document.getElementById('last48HoursButton').addEventListener('click', () => applyRange(48));
+      document.getElementById('last72HoursButton').addEventListener('click', () => applyRange(72));
+      document.getElementById('last8DaysButton').addEventListener('click', () => applyRange(8 * 24));
+
+      document.getElementById('resetRangeButton').addEventListener('click', function(){
+        applyRange(currentRangeHours);
+      });
+
+      document.getElementById('clusterCheckbox').addEventListener('change', function(){
+        updateMap(mapData || rangeData, this.checked);
+      });
+
+    }).catch(err => console.log('Error al cargar el GeoJSON:', err));
+  </script>
+</body>
+</html>
