@@ -432,7 +432,7 @@
       const txt = await fetchText(url);
 
       if (txt && txt.trim().startsWith("<")){
-        throw new Error("El servidor devolvió HTML (INAB caído o error interno).");
+        throw new Error("El servidor devolvió HTML (Servidor caído o error interno).");
       }
 
       let json;
@@ -1022,7 +1022,7 @@
       try{
         spatialCache = new Map();
 
-        setLoadingProgress(10, "Consultando servicio INAB…");
+        setLoadingProgress(10, "Consultando servicio…");
         rangeData = await fetchRangeFromServer(hours);
 
         setLoadingProgress(95, "Pintando mapa…");
@@ -1123,3 +1123,4 @@
   </script>
 </body>
 </html>
+
