@@ -14,7 +14,7 @@
   <style>
     body { margin:0; padding:0; font-family:Arial,sans-serif; background-color:#2D3748; color:white; }
     #header { background-color:#1E3A8A; color:white; padding:10px; text-align:center; }
-    #map-container { display:flex; flex-wrap:nowrap; }
+    #map-container { display:flex; flex-wrap:nowrap; position:relative; }
     #map { width:60%; height:800px; position:relative; }
     #controls { width:40%; padding:20px; background-color:#2D3748; color:white; overflow-y:auto; max-height:800px; }
 
@@ -95,6 +95,45 @@
     .cardPoint:hover{ background:rgba(255,255,255,0.12); transform:translateY(-1px); }
     .cardPoint b{ color:#fff; }
     .muted { color: rgba(255,255,255,0.8); font-size: 12px; }
+
+    /* ✅ Overlay de carga */
+    #loadingOverlay{
+      position:absolute;
+      inset:0;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      background:rgba(0,0,0,0.35);
+      z-index:9999;
+    }
+    #loadingOverlay .box{
+      background:rgba(45,55,72,0.95);
+      border:1px solid rgba(255,255,255,0.12);
+      padding:14px 16px;
+      border-radius:12px;
+      box-shadow:0 10px 24px rgba(0,0,0,0.35);
+      text-align:center;
+      min-width:280px;
+    }
+    #loadingOverlay .bar{
+      width:100%;
+      height:10px;
+      background:rgba(255,255,255,0.14);
+      border-radius:99px;
+      overflow:hidden;
+      margin-top:10px;
+    }
+    #loadingOverlay .bar > div{
+      height:100%;
+      width:0%;
+      background:rgba(56,178,172,0.9);
+      transition:width .15s ease;
+    }
+    #loadingOverlay .small{
+      margin-top:8px;
+      font-size:12px;
+      color:rgba(255,255,255,0.85);
+    }
   </style>
 </head>
 
@@ -110,6 +149,15 @@
 
   <div id="map-container">
     <div id="map"></div>
+
+    <!-- ✅ Overlay de carga -->
+    <div id="loadingOverlay">
+      <div class="box">
+        <div style="font-weight:bold;">Cargando datos…</div>
+        <div class="bar"><div id="loadingBar"></div></div>
+        <div class="small" id="loadingText">Iniciando…</div>
+      </div>
+    </div>
 
     <div id="controls">
       <!-- SUMMARY -->
@@ -160,13 +208,11 @@
           <canvas id="chartConcesiones"></canvas>
         </div>
 
-        <!-- ✅ Botones Excel según ámbito -->
         <button id="btnXLSConcesiones" class="btnXLS">📥 Descargar Excel (Concesiones)</button>
         <button id="btnXLSRBM" class="btnXLS" style="margin-top:8px;">📥 Descargar Excel (RBM)</button>
         <button id="btnXLSGT" class="btnXLS" style="margin-top:8px;">📥 Descargar Excel (Guatemala)</button>
 
         <div id="totalVisibleBox">Total dentro de Concesiones: <span id="totalVisible">0</span></div>
-
         <div id="listaConcesiones"></div>
       </div>
     </div>
@@ -175,8 +221,6 @@
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-  <!-- ✅ SheetJS para exportar Excel -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
   <script src="https://unpkg.com/leaflet.featuregroup.subgroup@1.0.2/dist/leaflet.featuregroup.subgroup.js"></script>
@@ -184,11 +228,27 @@
   <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
   <script src="https://unpkg.com/leaflet.geometryutil"></script>
   <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
-      <!-- Pantalla completa -->
-  <script src='https://api.mapbox.com/mapbox.js/plugins/leaflet-fullscreen/v1.0.1/Leaflet.fullscreen.min.js'></script>
-  <link href='https://api.mapbox.com/mapbox.js/plugins/leaflet-fullscreen/v1.0.1/leaflet.fullscreen.css' rel='stylesheet' />
 
   <script>
+    /* =========================
+       Overlay carga
+    ========================== */
+    var loadingOverlay = document.getElementById("loadingOverlay");
+    var loadingBar = document.getElementById("loadingBar");
+    var loadingText = document.getElementById("loadingText");
+
+    function showLoading(msg){
+      loadingOverlay.style.display = "flex";
+      loadingBar.style.width = "0%";
+      loadingText.textContent = msg || "Cargando…";
+    }
+    function setLoadingProgress(pct, msg){
+      var v = Math.max(0, Math.min(100, pct || 0));
+      loadingBar.style.width = v + "%";
+      if (msg) loadingText.textContent = msg;
+    }
+    function hideLoading(){ loadingOverlay.style.display = "none"; }
+
     /* =========================
        Tooltip área (Draw)
     ========================== */
@@ -231,30 +291,23 @@
     }).setView([16.939224, -90.231038], 8.50);
 
     var ggl = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+      attribution: '&copy; OpenStreetMap'
     });
 
     var osm = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
-      attribution: '&copy; <a href="http://www.idesa.gob.ar/2021/03/25/mas-mapas-xyz-tiles/">Google Hybrid</a>'
+      attribution: '&copy; Google Hybrid'
     }).addTo(map);
 
     var gglmps = L.tileLayer('https://mt1.google.com/vt/lyrs=r&x={x}&y={y}&z={z}', {
-      attribution: '&copy; <a href="http://www.idesa.gob.ar/2021/03/25/mas-mapas-xyz-tiles/">Google Maps</a>'
+      attribution: '&copy; Google Maps'
     });
-
-    var lyrIR  = L.imageOverlay('https://storage.googleapis.com/meteotech/data/goes/a_goes16_13.gif?'+(Math.random()*1000000).toFixed(0), [[35,-120],[0,-50]], {opacity:.6});
-    var lyrVI  = L.imageOverlay('https://storage.googleapis.com/meteotech/data/goes/a_goes16_01.gif?'+(Math.random()*1000000).toFixed(0), [[35,-120],[0,-50]], {opacity:.6});
 
     var capas = {
       '<big> 🌏 Google Hybrid</big>': osm,
       '<big> 🌐 Open street map</big>': ggl,
       '<big> 🗺️ Google Maps</big>': gglmps
     };
-    var AA = {
-      '<big> 🛰️ Satélite IR</big>': lyrIR,
-      '<big> 🛰️ Satélite VIS</big>': lyrVI
-    };
-    L.control.layers(capas, AA).addTo(map);
+    L.control.layers(capas, null).addTo(map);
 
     function getColor(d) {
       return d > 350 ? '#FF0000' : d > 300 ? '#FF4500' : '#FFFF00';
@@ -266,9 +319,213 @@
     function formatCoordinate(coordinate) { return Number(coordinate).toFixed(4); }
 
     /* =========================
-       DATASETS
+       ✅ TOP 10 más recientes = fuego activo
     ========================== */
-    var allData = null;
+    var last10Keys = new Set();
+
+    function getFeatureKey(f){
+      var p = f.properties || {};
+      if (p.objectid != null) return "oid_" + p.objectid;
+      if (p.OBJECTID != null) return "oid_" + p.OBJECTID;
+      if (p.ObjectId != null) return "oid_" + p.ObjectId;
+
+      var lon = (p.longitude != null) ? p.longitude : (f.geometry?.coordinates?.[0]);
+      var lat = (p.latitude  != null) ? p.latitude  : (f.geometry?.coordinates?.[1]);
+      return "k_" + String(p.acq_time || "") + "_" + String(lat || "") + "_" + String(lon || "");
+    }
+
+    function computeLast10Set(data){
+      last10Keys = new Set();
+      if (!data || !data.features || !data.features.length) return;
+
+      var arr = data.features
+        .map(f => {
+          var t = 0;
+          try { t = new Date((f.properties || {}).acq_time).getTime(); } catch(e){}
+          return { f: f, t: t };
+        })
+        .filter(x => x.t > 0)
+        .sort((a,b) => b.t - a.t)
+        .slice(0, 10);
+
+      arr.forEach(x => last10Keys.add(getFeatureKey(x.f)));
+    }
+
+    var FIRE_GIF_URL = "https://images.emojiterra.com/google/noto-emoji/animated-emoji/1f525.gif";
+
+    function makeFireDivIcon(size){
+      size = size || 56;
+      return L.divIcon({
+        className: "",
+        iconSize: [size, size],
+        iconAnchor: [size/2, size/2],
+        html: `
+          <div style="
+            width:${size}px; height:${size}px;
+            border-radius: 50%;
+            display:flex; align-items:center; justify-content:center;
+            background: rgba(0,0,0,0.25);
+            box-shadow:
+              0 0 0 3px rgba(255, 80, 80, 0.55),
+              0 0 28px rgba(255, 80, 80, 0.85),
+              0 0 55px rgba(255, 180, 0, 0.70);
+            border: 1px solid rgba(255,255,255,0.25);
+          ">
+            <img src="${FIRE_GIF_URL}" style="
+              width:${Math.round(size*0.78)}px;
+              height:${Math.round(size*0.78)}px;
+              object-fit:contain;
+              filter: drop-shadow(0 6px 10px rgba(0,0,0,0.45));
+            " />
+          </div>
+        `
+      });
+    }
+
+    /* =========================
+       ✅ ArcGIS query (PJSON -> GeoJSON)
+    ========================== */
+    var FEATURE_URL = "https://sig.inab.gob.gt/server/rest/services/Hosted/Satellite_VIIRS_MODIS_Vista/FeatureServer/0/query";
+    var LAYER_INFO_URL = "https://sig.inab.gob.gt/server/rest/services/Hosted/Satellite_VIIRS_MODIS_Vista/FeatureServer/0?f=pjson";
+
+    var OID_FIELD = "OBJECTID";
+    var MAX_RECORDS = 1000;
+    var _metaReady = false;
+
+    async function initLayerInfo(){
+      if (_metaReady) return;
+      try{
+        const r = await fetch(LAYER_INFO_URL);
+        const info = await r.json();
+        if (info && info.objectIdField) OID_FIELD = info.objectIdField;
+        if (info && info.maxRecordCount) MAX_RECORDS = info.maxRecordCount;
+        _metaReady = true;
+      }catch(e){
+        console.warn("No pude leer metadata layer. Uso defaults.", e);
+        _metaReady = true;
+      }
+    }
+
+    async function fetchText(url){
+      const r = await fetch(url);
+      return await r.text();
+    }
+
+    function arcgisPjsonToGeoJSON(pjson){
+      const fc = { type:"FeatureCollection", features:[] };
+      const feats = (pjson && pjson.features) ? pjson.features : [];
+      for (let i=0;i<feats.length;i++){
+        const f = feats[i];
+        const attrs = f.attributes || {};
+        const g = f.geometry || {};
+        if (g.x === undefined || g.y === undefined) continue;
+        fc.features.push({
+          type:"Feature",
+          geometry: { type:"Point", coordinates:[Number(g.x), Number(g.y)] },
+          properties: attrs
+        });
+      }
+      return fc;
+    }
+
+    async function fetchArcGISAsGeoJSON(url){
+      const txt = await fetchText(url);
+
+      if (txt && txt.trim().startsWith("<")){
+        throw new Error("El servidor devolvió HTML (INAB caído o error interno).");
+      }
+
+      let json;
+      try{ json = JSON.parse(txt); }
+      catch(e){ throw new Error("Respuesta inválida del servidor (no JSON)."); }
+
+      if (json && json.error){
+        const msg = (json.error.message || "Error ArcGIS")
+          + (json.error.details ? (" | " + json.error.details.join(" | ")) : "");
+        throw new Error(msg);
+      }
+
+      return arcgisPjsonToGeoJSON(json);
+    }
+
+    function parseTimeMsFromFeature(f){
+      const p = f.properties || {};
+      let v = p.acq_time;
+
+      if (typeof v === "number") return v;
+
+      if (typeof v === "string"){
+        const t = new Date(v).getTime();
+        if (!isNaN(t)) return t;
+
+        const asNum = Number(v);
+        if (!isNaN(asNum) && asNum > 1000000000) return asNum;
+      }
+
+      return NaN;
+    }
+
+    /* ==========================================================
+       ✅ IMPORTANTE:
+       ✅ ESTA FUNCIÓN JAMÁS USA WHERE acq_time <= ...
+       ✅ SIEMPRE: orderByFields=OID DESC y filtra localmente
+    ========================================================== */
+    async function fetchRangeFromServer(hours){
+      await initLayerInfo();
+
+      const now = new Date();
+      const past = new Date(now.getTime() - hours*60*60*1000);
+
+      const outFields = [
+        OID_FIELD, "latitude","longitude","bright_ti4",
+        "acq_time","satellite","depto","municipio","concat_2","gtm_x","gtm_y"
+      ].join(",");
+
+      const limit = Math.min(2000, MAX_RECORDS || 1000);
+      let offset = 0;
+      let page = 0;
+      let all = { type:"FeatureCollection", features:[] };
+
+      while(true){
+        page++;
+        setLoadingProgress(Math.min(90, page*20), `Descargando recientes… página ${page}`);
+
+        const url =
+          `${FEATURE_URL}?where=1%3D1`
+          + `&outFields=${encodeURIComponent(outFields)}`
+          + `&outSR=4326&f=pjson`
+          + `&orderByFields=${encodeURIComponent(OID_FIELD + " DESC")}`
+          + `&resultOffset=${offset}&resultRecordCount=${limit}`;
+
+        const gj = await fetchArcGISAsGeoJSON(url);
+
+        if (gj.features && gj.features.length){
+          for (const ft of gj.features){
+            const t = parseTimeMsFromFeature(ft);
+            if (!isNaN(t) && t >= past.getTime() && t <= now.getTime()){
+              all.features.push(ft);
+            }
+          }
+
+          const last = gj.features[gj.features.length - 1];
+          const lastT = parseTimeMsFromFeature(last);
+          if (!isNaN(lastT) && lastT < past.getTime()){
+            break;
+          }
+        }
+
+        if (!gj.features || gj.features.length < limit) break;
+
+        offset += limit;
+        if (page > 15) break; // seguridad
+      }
+
+      return all;
+    }
+
+    /* =========================
+       Variables globales
+    ========================== */
     var rangeData = null;
     var mapData   = null;
     var currentRangeHours = 24;
@@ -334,8 +591,7 @@
       return false;
     }
 
-    // último conteo (para UI)
-    var lastCounts = { total:0, con:0, rbm:0, gt:0 };
+    var spatialCache = new Map();
 
     function updateSpatialCounters(data) {
       var countCon = 0, countRBM = 0, countGT = 0;
@@ -344,7 +600,6 @@
         document.getElementById('count-concessions').textContent = "0";
         document.getElementById('count-rbm').textContent = "0";
         document.getElementById('count-gt').textContent = "0";
-        lastCounts = { total:0, con:0, rbm:0, gt:0 };
         return;
       }
 
@@ -355,83 +610,27 @@
         var lon = f.geometry.coordinates[0];
         var lat = f.geometry.coordinates[1];
 
-        if (gtFeature && pointInFeature(lon, lat, gtFeature)) countGT++;
-        if (rbmIndex.length && pointInAnyRBM(lon, lat)) countRBM++;
-        if (concesionesIndex.length && pointInAnyConcession(lon, lat)) countCon++;
+        var key = getFeatureKey(f);
+        var cached = spatialCache.get(key);
+
+        if (!cached){
+          var inGT = gtFeature ? pointInFeature(lon, lat, gtFeature) : true;
+          var inRBM = rbmIndex.length ? pointInAnyRBM(lon, lat) : false;
+          var cName = concesionesIndex.length ? getConcessionNameFromPoint(lon, lat) : null;
+          var inCon = !!cName;
+
+          cached = { gt: inGT, rbm: inRBM, con: inCon, concesionName: cName };
+          spatialCache.set(key, cached);
+        }
+
+        if (cached.gt) countGT++;
+        if (cached.rbm) countRBM++;
+        if (cached.con) countCon++;
       }
 
       document.getElementById('count-concessions').textContent = countCon.toLocaleString();
       document.getElementById('count-rbm').textContent = countRBM.toLocaleString();
       document.getElementById('count-gt').textContent = countGT.toLocaleString();
-
-      lastCounts = {
-        total: (data.features || []).length,
-        con: countCon,
-        rbm: countRBM,
-        gt: countGT
-      };
-    }
-
-    /* =========================
-       CARGA PUNTOS (INAB VIIRS/MODIS VISTA)
-    ========================== */
-    async function loadAllData() {
-      var limit = 1000;
-      var offset = 0;
-      var allDataLocal = { type: "FeatureCollection", features: [] };
-      var fetchedData;
-
-      do {
-        fetchedData = await fetchData(offset, limit);
-        if (fetchedData && fetchedData.features) {
-          allDataLocal.features = allDataLocal.features.concat(fetchedData.features);
-        }
-        offset += limit;
-      } while (fetchedData && fetchedData.features && fetchedData.features.length === limit);
-
-      return allDataLocal;
-    }
-
-    function fetchData(offset, limit) {
-      var url = `https://sig.inab.gob.gt/server/rest/services/Hosted/Satellite_VIIRS_MODIS_Vista/FeatureServer/0/query?where=1%3D1&outFields=*&outSR=4326&f=geojson&resultOffset=${offset}&resultRecordCount=${limit}`;
-      return fetch(url).then(r => r.json());
-    }
-
-    function filterDataByRelativeTime(data, hours) {
-      var now = new Date();
-      var pastDate = new Date(now.getTime() - (hours * 60 * 60 * 1000));
-      return {
-        type: "FeatureCollection",
-        features: (data.features || []).filter(feature => {
-          var acqDate = new Date(feature.properties.acq_time);
-          return acqDate >= pastDate && acqDate <= now;
-        })
-      };
-    }
-
-    function filterDataByDate(data, date) {
-      return {
-        type: "FeatureCollection",
-        features: (data.features || []).filter(feature => {
-          var acqDate = new Date(feature.properties.acq_time).toISOString().split('T')[0];
-          return acqDate === date;
-        })
-      };
-    }
-
-    function updateChart(data) {
-      var dateCounts = (data.features || []).reduce((acc, feature) => {
-        var date = new Date(feature.properties.acq_time).toISOString().split('T')[0];
-        acc[date] = (acc[date] || 0) + 1;
-        return acc;
-      }, {});
-
-      var sortedDates = Object.keys(dateCounts).sort((a,b) => new Date(a) - new Date(b));
-      var sortedCounts = sortedDates.map(d => dateCounts[d]);
-
-      chart.data.labels = sortedDates;
-      chart.data.datasets[0].data = sortedCounts;
-      chart.update();
     }
 
     function updateSummary(total) {
@@ -439,7 +638,7 @@
     }
 
     /* =========================
-       Resaltar concesiones con puntos (rojo)
+       Concesiones resaltadas
     ========================== */
     var concesionesLayer = null;
     var concessionHeatCounts = {};
@@ -456,7 +655,7 @@
     }
 
     /* =========================
-       Panel concesión: gráfico + listado
+       Panel concesión
     ========================== */
     var chartConcesiones = null;
 
@@ -470,11 +669,12 @@
       data.features.forEach(f => {
         if (!f.geometry || !f.geometry.coordinates) return;
 
-        // OJO: el GeoJSON ya trae latitude/longitude, pero usamos geometry como fuente robusta
         var lon = f.geometry.coordinates[0];
         var lat = f.geometry.coordinates[1];
 
-        var nombre = getConcessionNameFromPoint(lon, lat);
+        var key = getFeatureKey(f);
+        var cached = spatialCache.get(key);
+        var nombre = cached ? cached.concesionName : getConcessionNameFromPoint(lon, lat);
         if (!nombre) return;
 
         conteo[nombre] = (conteo[nombre] || 0) + 1;
@@ -552,10 +752,8 @@
     }
 
     /* =========================
-       ✅ Exportar Excel (XLSX) por ámbito
-       Campos solicitados:
-       latitude, longitude, acq_time, satellite, depto, municipio, gtm_x, gtm_y
-========================= */
+       Excel
+    ========================== */
     function fmtDateForExcel(v){
       if (!v) return "";
       try { return new Date(v).toLocaleString(); } catch(e){ return String(v); }
@@ -563,9 +761,8 @@
 
     function featureToRow(f){
       var p = f.properties || {};
-      // prioridad: atributos propios (latitude/longitude) y fallback a geometry
-      var lat = (p.latitude !== undefined && p.latitude !== null) ? p.latitude : (f.geometry?.coordinates?.[1]);
-      var lon = (p.longitude !== undefined && p.longitude !== null) ? p.longitude : (f.geometry?.coordinates?.[0]);
+      var lat = (p.latitude != null) ? p.latitude : (f.geometry?.coordinates?.[1]);
+      var lon = (p.longitude != null) ? p.longitude : (f.geometry?.coordinates?.[0]);
 
       return {
         latitude:  (lat !== undefined ? Number(lat) : ""),
@@ -586,8 +783,8 @@
       if (scope === "concesiones"){
         return feats.filter(f => {
           var p = f.properties || {};
-          var lon = (p.longitude !== undefined && p.longitude !== null) ? p.longitude : (f.geometry?.coordinates?.[0]);
-          var lat = (p.latitude  !== undefined && p.latitude  !== null) ? p.latitude  : (f.geometry?.coordinates?.[1]);
+          var lon = (p.longitude != null) ? p.longitude : (f.geometry?.coordinates?.[0]);
+          var lat = (p.latitude  != null) ? p.latitude  : (f.geometry?.coordinates?.[1]);
           if (lon === undefined || lat === undefined) return false;
           return pointInAnyConcession(Number(lon), Number(lat));
         });
@@ -596,18 +793,17 @@
       if (scope === "rbm"){
         return feats.filter(f => {
           var p = f.properties || {};
-          var lon = (p.longitude !== undefined && p.longitude !== null) ? p.longitude : (f.geometry?.coordinates?.[0]);
-          var lat = (p.latitude  !== undefined && p.latitude  !== null) ? p.latitude  : (f.geometry?.coordinates?.[1]);
+          var lon = (p.longitude != null) ? p.longitude : (f.geometry?.coordinates?.[0]);
+          var lat = (p.latitude  != null) ? p.latitude  : (f.geometry?.coordinates?.[1]);
           if (lon === undefined || lat === undefined) return false;
           return pointInAnyRBM(Number(lon), Number(lat));
         });
       }
 
-      // Guatemala (si no carga gtFeature, descarga todo el rango)
       return feats.filter(f => {
         var p = f.properties || {};
-        var lon = (p.longitude !== undefined && p.longitude !== null) ? p.longitude : (f.geometry?.coordinates?.[0]);
-        var lat = (p.latitude  !== undefined && p.latitude  !== null) ? p.latitude  : (f.geometry?.coordinates?.[1]);
+        var lon = (p.longitude != null) ? p.longitude : (f.geometry?.coordinates?.[0]);
+        var lat = (p.latitude  != null) ? p.latitude  : (f.geometry?.coordinates?.[1]);
         if (lon === undefined || lat === undefined) return false;
         if (!gtFeature) return true;
         return pointInFeature(Number(lon), Number(lat), gtFeature);
@@ -621,7 +817,6 @@
         return;
       }
 
-      // evita descargas vacías por no haber cargado polígonos todavía
       if (scope === "concesiones" && !concesionesIndex.length){
         alert("Aún no termina de cargar Concesiones. Espera 2-3 segundos y prueba de nuevo.");
         return;
@@ -674,6 +869,8 @@
     function updateMap(data, useCluster) {
       mapData = data;
 
+      computeLast10Set(data);
+
       if (markersToday) map.removeLayer(markersToday);
       if (markersOthers) map.removeLayer(markersOthers);
 
@@ -698,13 +895,20 @@
       };
 
       function pointLayer(feature, latlng){
+        var key = getFeatureKey(feature);
+
+        if (last10Keys.has(key)){
+          return L.marker(latlng, { icon: makeFireDivIcon(62), riseOnHover:true });
+        }
+
+        var p = feature.properties || {};
         return L.circleMarker(latlng, {
-          radius: 8,
-          fillColor: getColor(feature.properties.bright_ti4),
-          color: getColor(feature.properties.bright_ti4),
+          radius: 7,
+          fillColor: getColor(p.bright_ti4),
+          color: getColor(p.bright_ti4),
           weight: 1,
           opacity: 1,
-          fillOpacity: 0.8
+          fillOpacity: 0.80
         });
       }
 
@@ -736,61 +940,67 @@
     /* =========================
        Chart principal (por día)
     ========================== */
+    function filterDataByDate(data, date) {
+      return {
+        type: "FeatureCollection",
+        features: (data.features || []).filter(feature => {
+          var acqDate = new Date(feature.properties.acq_time).toISOString().split('T')[0];
+          return acqDate === date;
+        })
+      };
+    }
+
+    function updateChart(data) {
+      var dateCounts = (data.features || []).reduce((acc, feature) => {
+        var date = new Date(feature.properties.acq_time).toISOString().split('T')[0];
+        acc[date] = (acc[date] || 0) + 1;
+        return acc;
+      }, {});
+
+      var sortedDates = Object.keys(dateCounts).sort((a,b) => new Date(a) - new Date(b));
+      var sortedCounts = sortedDates.map(d => dateCounts[d]);
+
+      chart.data.labels = sortedDates;
+      chart.data.datasets[0].data = sortedCounts;
+      chart.update();
+    }
+
     var selectedBarIndex = null;
 
     var chart = new Chart(document.getElementById('chart'), {
       type: 'bar',
-      data: {
-        labels: [],
-        datasets: [{
-          label: 'Puntos',
-          data: [],
-          borderWidth: 0,
-          borderRadius: 10,
-          borderSkipped: false,
-          barThickness: 18,
-          maxBarThickness: 22,
-          backgroundColor: function(ctx){
-            var i = ctx.dataIndex;
-            if (selectedBarIndex !== null && i === selectedBarIndex) return 'rgba(56, 178, 172, 0.95)';
-            return 'rgba(56, 178, 172, 0.55)';
-          },
-          hoverBackgroundColor: 'rgba(56, 178, 172, 0.9)'
-        }]
-      },
+      data: { labels: [], datasets: [{
+        label: 'Puntos',
+        data: [],
+        borderWidth: 0,
+        borderRadius: 10,
+        borderSkipped: false,
+        barThickness: 18,
+        maxBarThickness: 22,
+        backgroundColor: function(ctx){
+          var i = ctx.dataIndex;
+          if (selectedBarIndex !== null && i === selectedBarIndex) return 'rgba(56, 178, 172, 0.95)';
+          return 'rgba(56, 178, 172, 0.55)';
+        },
+        hoverBackgroundColor: 'rgba(56, 178, 172, 0.9)'
+      } ]},
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        layout: { padding: { top: 8, right: 10, bottom: 6, left: 10 } },
         plugins: {
           legend: { display: false },
-          title: { display: true, text:"Puntos por día (rango actual)", color: 'white', font: { size: 14, weight: 'bold' }, padding: { bottom: 8 } },
-          tooltip: {
-            backgroundColor: 'rgba(0,0,0,0.8)',
-            titleColor: '#fff',
-            bodyColor: '#fff',
-            padding: 10,
-            displayColors: false,
-            callbacks: { label: (ctx) => ' ' + ctx.parsed.y.toLocaleString() + ' puntos' }
-          }
+          title: { display: true, text:"Puntos por día (rango actual)", color: 'white' }
         },
         scales: {
-          x: { grid: { display:false }, ticks:{ color:'rgba(255,255,255,0.85)', maxTicksLimit:6, font:{ size:11 } } },
-          y: {
-            beginAtZero:true,
-            grid:{ color:'rgba(255,255,255,0.10)' },
-            ticks:{ color:'rgba(255,255,255,0.85)', callback:(v)=>Number(v).toLocaleString() }
-          }
+          x: { grid: { display:false }, ticks:{ color:'rgba(255,255,255,0.85)', maxTicksLimit:6 } },
+          y: { beginAtZero:true, ticks:{ color:'rgba(255,255,255,0.85)' } }
         },
-        animation:{ duration:700 },
         onClick: function(event, elements) {
           if (elements.length > 0) {
             selectedBarIndex = elements[0].index;
             var date = this.data.labels[selectedBarIndex];
-
             var filteredData = filterDataByDate(rangeData, date);
             document.getElementById('resetRangeButton').style.display = 'block';
-
             updateMap(filteredData, document.getElementById('clusterCheckbox').checked);
             chart.update();
           }
@@ -799,76 +1009,60 @@
     });
 
     /* =========================
-       Rangos y controles
+       RANGOS
     ========================== */
-    function applyRange(hours) {
+    async function applyRange(hours) {
       currentRangeHours = hours;
-
-      rangeData = filterDataByRelativeTime(allData, hours);
-
       selectedBarIndex = null;
       document.getElementById('resetRangeButton').style.display = 'none';
 
-      updateChart(rangeData);
-      updateMap(rangeData, document.getElementById('clusterCheckbox').checked);
+      showLoading(`Cargando puntos (${hours}h)…`);
+      document.getElementById('total-points').textContent = "…";
 
-      chart.update();
+      try{
+        spatialCache = new Map();
+
+        setLoadingProgress(10, "Consultando servicio INAB…");
+        rangeData = await fetchRangeFromServer(hours);
+
+        setLoadingProgress(95, "Pintando mapa…");
+        updateChart(rangeData);
+        updateMap(rangeData, document.getElementById('clusterCheckbox').checked);
+        chart.update();
+
+        setLoadingProgress(100, "Listo");
+        setTimeout(hideLoading, 200);
+      } catch(e){
+        console.error("Fallo cargando datos:", e);
+        hideLoading();
+        alert("Error cargando datos: " + (e.message || e));
+      }
     }
 
     /* =========================
-       RBM + Concesiones (overlays)
+       RBM + Concesiones
     ========================== */
-    var rbmLayer = L.geoJSON(null, {
-      style: function() { return { color:'blue', weight:1, fillOpacity:0 }; },
-      onEachFeature: function(feature, layer) {
-        var popupContent = `
-          <strong>Categoría:</strong> ${feature.properties.Categor_14 || 'N/D'}<br>
-          <strong>Nombre:</strong> ${feature.properties.NOMBRE_e_1 || 'N/D'}
-        `;
-        layer.bindPopup(popupContent);
-      }
-    });
-
-    concesionesLayer = L.geoJSON(null, {
-      style: concesionStyle,
-      onEachFeature: function(feature, layer) {
-        layer.bindPopup(`<strong>Concesión:</strong> ${getConcessionName(feature)}`);
-      }
-    });
+    var rbmLayer = L.geoJSON(null, { style: () => ({ color:'blue', weight:1, fillOpacity:0 }) });
+    concesionesLayer = L.geoJSON(null, { style: concesionStyle });
 
     fetch('https://raw.githubusercontent.com/nestorcaalsuc/RBM/main/RBM.geojson')
       .then(r => r.json()).then(d => {
         rbmLayer.addData(d);
         rbmFeatures = (d && d.features) ? d.features : [];
         rbmIndex = buildBBoxIndex(rbmFeatures);
-        if (mapData || rangeData) updateSpatialCounters(mapData || rangeData);
-      })
-      .catch(e => console.error('Error loading RBM GeoJSON:', e));
+      });
 
     fetch('https://raw.githubusercontent.com/nestorcaalsuc/RBM/main/Concesiones.geojson')
       .then(r => r.json()).then(d => {
         concesionesLayer.addData(d);
         concesionesFeatures = (d && d.features) ? d.features : [];
         concesionesIndex = buildBBoxIndex(concesionesFeatures);
-
         updateConcessionStylesFromCounts({});
-
-        if (mapData || rangeData) {
-          updateSpatialCounters(mapData || rangeData);
-          actualizarGraficoConcesiones(mapData || rangeData);
-        }
-      })
-      .catch(e => console.error('Error loading Concesiones GeoJSON:', e));
+      });
 
     fetch(GT_GEOJSON_URL)
       .then(r => r.json())
-      .then(d => {
-        if (d && d.type === "Feature") gtFeature = d;
-        else if (d && d.features && d.features.length) gtFeature = d.features[0];
-
-        if (mapData || rangeData) updateSpatialCounters(mapData || rangeData);
-      })
-      .catch(e => console.warn("No se pudo cargar Guatemala GeoJSON. Cambia GT_GEOJSON_URL si usas otra fuente.", e));
+      .then(d => { gtFeature = (d.type === "Feature") ? d : (d.features && d.features[0]); });
 
     L.control.layers(null, {
       "Concesiones Forestales": concesionesLayer,
@@ -910,10 +1104,8 @@
     /* =========================
        INIT
     ========================== */
-    loadAllData().then(data => {
-      allData = data;
-
-      applyRange(24);
+    (async function init(){
+      await applyRange(24);
 
       document.getElementById('todayButton').addEventListener('click', () => applyRange(24));
       document.getElementById('last48HoursButton').addEventListener('click', () => applyRange(48));
@@ -927,12 +1119,7 @@
       document.getElementById('clusterCheckbox').addEventListener('change', function(){
         updateMap(mapData || rangeData, this.checked);
       });
-
-    }).catch(err => console.log('Error al cargar el GeoJSON:', err));
+    })();
   </script>
 </body>
 </html>
-
-
-
-
