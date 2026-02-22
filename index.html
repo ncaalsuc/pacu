@@ -3,13 +3,20 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Geoportal tfm</title>
+  <title>Geoportal TFM</title>
 
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
-  <link href="https://unpkg.com/leaflet.fullscreen@latest/Control.FullScreen.css" rel="stylesheet" />
+  <!-- Leaflet Core -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <!-- MarkerCluster -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+
+  <!-- Leaflet Draw -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+
+  <!-- Leaflet Fullscreen (RECOMENDADO: este plugin funciona bien en web + móvil) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.fullscreen@2.4.0/Control.FullScreen.css" />
 
   <style>
     body { margin:0; padding:0; font-family:Arial,sans-serif; background-color:#2D3748; color:white; }
@@ -22,28 +29,30 @@
     #summary h2 { margin:0; font-size:18px; }
     #summary p { margin:6px 0; font-size:34px; font-weight:bold; }
 
-    #chart-container, #filters, #concesion-panel, #last10-panel {
+    #chart-container, #filters, #last10-panel, #concesion-panel {
       background-color:#4A5568;
       padding:14px;
       margin-bottom:16px;
       border-radius:12px;
       box-shadow:0 8px 18px rgba(0,0,0,0.25);
     }
+
     #chart-container { height:260px; position:relative; }
     #chart { width:100% !important; height:100% !important; }
 
     #filters h3 { margin:0; }
-    #filters button {
+    #filters button, .btnXLS, .btnRefresh {
       width:100%;
       margin:5px 0;
       padding:10px;
       background-color:#38B2AC;
       color:white;
       border:none;
-      border-radius:5px;
+      border-radius:8px;
       cursor:pointer;
+      font-weight:bold;
     }
-    #filters button:hover { background-color:#319795; }
+    #filters button:hover, .btnXLS:hover, .btnRefresh:hover { background-color:#319795; }
 
     #resetRangeButton {
       background-color:#CBD5E0;
@@ -56,19 +65,6 @@
     .area-tooltip { background:rgba(0,0,0,0.5); border:none; color:#f8d5e4; }
 
     #concesion-panel h3, #last10-panel h3 { margin:0 0 10px 0; }
-
-    .btnXLS {
-      width:100%;
-      margin-top:10px;
-      padding:10px;
-      background-color:#38B2AC;
-      color:white;
-      border:none;
-      border-radius:8px;
-      cursor:pointer;
-      font-weight:bold;
-    }
-    .btnXLS:hover{ background-color:#319795; }
 
     #totalVisibleBox{
       margin-top:12px;
@@ -84,6 +80,7 @@
       flex-direction:column;
       gap:10px;
     }
+
     .cardPoint{
       background:rgba(255,255,255,0.08);
       border:1px solid rgba(255,255,255,0.10);
@@ -95,6 +92,29 @@
     .cardPoint:hover{ background:rgba(255,255,255,0.12); transform:translateY(-1px); }
     .cardPoint b{ color:#fff; }
     .muted { color: rgba(255,255,255,0.8); font-size: 12px; }
+
+    /* ✅ Cards especiales: últimos 10 */
+    .last10Card{
+      background:rgba(255,255,255,0.08);
+      border:1px solid rgba(255,255,255,0.10);
+      border-radius:12px;
+      padding:12px;
+      cursor:pointer;
+      transition:transform .12s ease, background .12s ease;
+    }
+    .last10Card:hover{ background:rgba(255,255,255,0.12); transform:translateY(-1px); }
+
+    /* ✅ Si cae dentro de concesión => rojo intermitente */
+    .blink-red{
+      border:1px solid rgba(255,60,60,0.60) !important;
+      box-shadow: 0 0 0 2px rgba(255,60,60,0.30), 0 0 18px rgba(255,60,60,0.35);
+      animation: blinkBorder 1s infinite;
+    }
+    @keyframes blinkBorder{
+      0%   { background:rgba(255,60,60,0.10); }
+      50%  { background:rgba(255,60,60,0.28); }
+      100% { background:rgba(255,60,60,0.10); }
+    }
 
     /* ✅ Overlay de carga */
     #loadingOverlay{
@@ -135,49 +155,51 @@
       color:rgba(255,255,255,0.85);
     }
 
-    /* ✅ ALERTA visual en lista de últimos 10 cuando cae dentro de concesión */
-    .cardAlert {
-      border: 2px solid rgba(255, 60, 60, 0.95) !important;
-      background: rgba(255, 60, 60, 0.12) !important;
-      box-shadow: 0 0 0 2px rgba(255,60,60,0.25), 0 0 22px rgba(255,60,60,0.45) !important;
-      animation: pulseRed 0.9s ease-in-out infinite;
+    /* ===============================
+       ⭐ CONTROL DE CAPAS PROFESIONAL
+       (Encabezados sin checkbox)
+    ================================ */
+    .leaflet-control-layers-expanded{
+      border-radius:16px;
+      overflow:hidden;
+      background: rgba(45,55,72,0.97);
+      border:1px solid rgba(255,255,255,0.10);
+      box-shadow: 0 16px 40px rgba(0,0,0,0.45);
+      padding:10px;
     }
-    .badgeCon {
-      display:inline-block;
-      padding:2px 8px;
-      border-radius:999px;
-      font-size:12px;
-      font-weight:bold;
-      background: rgba(255,60,60,0.9);
-      color: #fff;
-      margin-left:6px;
-      animation: blinkBadge 0.9s ease-in-out infinite;
+    .lc-heading{
+      display:block;
+      font-weight:800;
+      padding:8px 10px;
+      margin:10px 0 6px 0;
+      border-radius:12px;
+      background: rgba(0,0,0,0.25);
+      border: 1px solid rgba(255,255,255,0.10);
+      color:#ffffff;
+      letter-spacing:0.4px;
     }
-    @keyframes pulseRed{
-      0%   { transform: scale(1);   filter: brightness(1); }
-      50%  { transform: scale(1.01); filter: brightness(1.25); }
-      100% { transform: scale(1);   filter: brightness(1); }
+    .leaflet-control-layers-overlays label.is-heading{
+      pointer-events:none;
+      cursor:default;
     }
-    @keyframes blinkBadge{
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.25; }
+    .leaflet-control-layers-overlays label.is-heading input{
+      display:none !important;
     }
-
-    /* ✅ Animación en el icono de fuego SOLO si cae dentro de concesión */
-    @keyframes firePulseRing {
-      0%   { box-shadow: 0 0 0 3px rgba(255, 80, 80, 0.55), 0 0 28px rgba(255, 80, 80, 0.85), 0 0 55px rgba(255, 180, 0, 0.70); transform: scale(1); }
-      50%  { box-shadow: 0 0 0 6px rgba(255, 80, 80, 0.35), 0 0 34px rgba(255, 80, 80, 0.95), 0 0 70px rgba(255, 180, 0, 0.85); transform: scale(1.04); }
-      100% { box-shadow: 0 0 0 3px rgba(255, 80, 80, 0.55), 0 0 28px rgba(255, 80, 80, 0.85), 0 0 55px rgba(255, 180, 0, 0.70); transform: scale(1); }
+    .leaflet-control-layers-overlays label,
+    .leaflet-control-layers-base label{
+      padding:6px 4px;
+      font-size:14px;
+      color:white;
     }
-    .fire-alert-ring{
-      animation: firePulseRing 0.95s ease-in-out infinite;
+    .leaflet-control-layers-base{
+      margin-bottom:8px;
     }
   </style>
 </head>
 
 <body>
   <div id="header">
-    <h1>"Geoportal para el monitoreo de incendios forestales en la Reserva de la Biósfera Maya"</h1>
+    <h1>"Geoportal para el monitoreo de puntos de calor en la Reserva de la Biósfera Maya"</h1>
     <h2>Proyecto desarrollado por: PACUNAM</h2>
     <p>Fuente:
       <a href="https://www.earthdata.nasa.gov/learn/find-data/near-real-time/firms" target="_blank"
@@ -219,10 +241,11 @@
         </div>
       </div>
 
-      <!-- ✅ ÚLTIMOS 10 -->
+      <!-- ✅ ÚLTIMOS 10 (LISTA) -->
       <div id="last10-panel">
-        <h3>🔥 Últimos 10 detectados (más recientes)</h3>
-        <div class="muted">Si cae dentro de concesión, se muestra en rojo/intermitente.</div>
+        <h3>⚠️ Últimos 10 detectados (más recientes)</h3>
+        <button id="btnRefresh" class="btnRefresh">🔄 Actualizar datos</button>
+        <div class="muted">Los que caen dentro de concesión parpadean en rojo.</div>
         <div id="listaLast10"></div>
       </div>
 
@@ -247,7 +270,7 @@
 
       <!-- PANEL: GRÁFICO POR CONCESIÓN + EXPORT EXCEL -->
       <div id="concesion-panel">
-        <h3>🔥 Gráfico de puntos de calor por Concesión</h3>
+        <h3>🟡️ Gráfico de puntos de calor por Concesión</h3>
 
         <div style="height:260px; position:relative;">
           <canvas id="chartConcesiones"></canvas>
@@ -263,16 +286,15 @@
     </div>
   </div>
 
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
+  <!-- Libs -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-
-  <script src="https://unpkg.com/leaflet.featuregroup.subgroup@1.0.2/dist/leaflet.featuregroup.subgroup.js"></script>
-  <script src="https://unpkg.com/leaflet.fullscreen@latest/Control.FullScreen.js"></script>
   <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
   <script src="https://unpkg.com/leaflet.geometryutil"></script>
   <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
+  <script src="https://unpkg.com/leaflet.fullscreen@2.4.0/Control.FullScreen.js"></script>
 
   <script>
     /* =========================
@@ -352,7 +374,6 @@
       '<big> 🌐 Open street map</big>': ggl,
       '<big> 🗺️ Google Maps</big>': gglmps
     };
-    L.control.layers(capas, null).addTo(map);
 
     function getColor(d) {
       return d > 350 ? '#FF0000' : d > 300 ? '#FF4500' : '#FFFF00';
@@ -362,15 +383,6 @@
       return date.toLocaleString();
     }
     function formatCoordinate(coordinate) { return Number(coordinate).toFixed(4); }
-
-    function getCoords(feature){
-      if (!feature) return null;
-      var p = feature.properties || {};
-      var lon = (p.longitude != null) ? Number(p.longitude) : (feature.geometry && feature.geometry.coordinates ? Number(feature.geometry.coordinates[0]) : null);
-      var lat = (p.latitude  != null) ? Number(p.latitude)  : (feature.geometry && feature.geometry.coordinates ? Number(feature.geometry.coordinates[1]) : null);
-      if (lon == null || lat == null || isNaN(lon) || isNaN(lat)) return null;
-      return [lon, lat];
-    }
 
     /* =========================
        ✅ TOP 10 más recientes = fuego activo
@@ -383,9 +395,8 @@
       if (p.OBJECTID != null) return "oid_" + p.OBJECTID;
       if (p.ObjectId != null) return "oid_" + p.ObjectId;
 
-      var coords = getCoords(f);
-      var lon = coords ? coords[0] : "";
-      var lat = coords ? coords[1] : "";
+      var lon = (p.longitude != null) ? p.longitude : (f.geometry?.coordinates?.[0]);
+      var lat = (p.latitude  != null) ? p.latitude  : (f.geometry?.coordinates?.[1]);
       return "k_" + String(p.acq_time || "") + "_" + String(lat || "") + "_" + String(lon || "");
     }
 
@@ -397,10 +408,6 @@
         .map(f => {
           var t = 0;
           try { t = new Date((f.properties || {}).acq_time).getTime(); } catch(e){}
-          if (!t) {
-            var tt = parseTimeMsFromFeature(f);
-            if (!isNaN(tt)) t = tt;
-          }
           return { f: f, t: t };
         })
         .filter(x => x.t > 0)
@@ -410,18 +417,17 @@
       arr.forEach(x => last10Keys.add(getFeatureKey(x.f)));
     }
 
-    var FIRE_GIF_URL = "https://images.emojiterra.com/google/noto-emoji/animated-emoji/1f525.gif";
+    //var FIRE_GIF_URL = "https://images.emojiterra.com/google/noto-emoji/animated-emoji/1f525.gif";
+	var FIRE_GIF_URL = "https://images.emojiterra.com/google/noto-emoji/animated-emoji/26a0.gif";
 
-    // ✅ ahora recibe flag alert para animar SOLO si cae en concesión
-    function makeFireDivIcon(size, isAlert){
+    function makeFireDivIcon(size){
       size = size || 56;
-      var ringClass = isAlert ? "fire-alert-ring" : "";
       return L.divIcon({
         className: "",
         iconSize: [size, size],
         iconAnchor: [size/2, size/2],
         html: `
-          <div class="${ringClass}" style="
+          <div style="
             width:${size}px; height:${size}px;
             border-radius: 50%;
             display:flex; align-items:center; justify-content:center;
@@ -453,10 +459,10 @@
     var MAX_RECORDS = 1000;
     var _metaReady = false;
 
-    async function initLayerInfo(){
-      if (_metaReady) return;
+    async function initLayerInfo(forceNoCache){
+      if (_metaReady && !forceNoCache) return;
       try{
-        const r = await fetch(LAYER_INFO_URL);
+        const r = await fetch(LAYER_INFO_URL + (forceNoCache ? ("&cb=" + Date.now()) : ""));
         const info = await r.json();
         if (info && info.objectIdField) OID_FIELD = info.objectIdField;
         if (info && info.maxRecordCount) MAX_RECORDS = info.maxRecordCount;
@@ -493,7 +499,7 @@
       const txt = await fetchText(url);
 
       if (txt && txt.trim().startsWith("<")){
-        throw new Error("El servidor devolvió HTML (Servidor caído o error interno).");
+        throw new Error("El servidor devolvió HTML (servicio caído o error interno).");
       }
 
       let json;
@@ -526,8 +532,13 @@
       return NaN;
     }
 
-    async function fetchRangeFromServer(hours){
-      await initLayerInfo();
+    /* ==========================================================
+       ✅ IMPORTANTE:
+       ✅ NUNCA usa where acq_time <= ...
+       ✅ SIEMPRE: orderByFields=OID DESC y filtra localmente
+    ========================================================== */
+    async function fetchRangeFromServer(hours, forceNoCache){
+      await initLayerInfo(forceNoCache);
 
       const now = new Date();
       const past = new Date(now.getTime() - hours*60*60*1000);
@@ -546,12 +557,14 @@
         page++;
         setLoadingProgress(Math.min(90, page*20), `Descargando recientes… página ${page}`);
 
+        const cb = forceNoCache ? ("&cb=" + Date.now()) : "";
         const url =
           `${FEATURE_URL}?where=1%3D1`
           + `&outFields=${encodeURIComponent(outFields)}`
           + `&outSR=4326&f=pjson`
           + `&orderByFields=${encodeURIComponent(OID_FIELD + " DESC")}`
-          + `&resultOffset=${offset}&resultRecordCount=${limit}`;
+          + `&resultOffset=${offset}&resultRecordCount=${limit}`
+          + cb;
 
         const gj = await fetchArcGISAsGeoJSON(url);
 
@@ -661,11 +674,10 @@
 
       for (var i = 0; i < data.features.length; i++) {
         var f = data.features[i];
-        var coords = getCoords(f);
-        if (!coords) continue;
+        if (!f.geometry || !f.geometry.coordinates) continue;
 
-        var lon = coords[0];
-        var lat = coords[1];
+        var lon = f.geometry.coordinates[0];
+        var lat = f.geometry.coordinates[1];
 
         var key = getFeatureKey(f);
         var cached = spatialCache.get(key);
@@ -712,69 +724,6 @@
     }
 
     /* =========================
-       ✅ Últimos 10: lista (rojo/intermitente si en concesión)
-    ========================== */
-    function renderLast10List(data){
-      var div = document.getElementById("listaLast10");
-      div.innerHTML = "";
-
-      if (!data || !data.features || !data.features.length){
-        div.innerHTML = '<div class="cardPoint">Sin datos en el rango actual.</div>';
-        return;
-      }
-
-      var arr = [];
-      for (var i=0;i<data.features.length;i++){
-        var f = data.features[i];
-        var t = parseTimeMsFromFeature(f);
-        if (!isNaN(t)) arr.push({ f:f, t:t });
-      }
-      arr.sort(function(a,b){ return b.t - a.t; });
-      arr = arr.slice(0,10);
-
-      for (var j=0;j<arr.length;j++){
-        (function(item){
-          var f = item.f;
-          var p = f.properties || {};
-          var coords = getCoords(f);
-          if (!coords) return;
-
-          var lon = coords[0];
-          var lat = coords[1];
-
-          var key = getFeatureKey(f);
-          var cached = spatialCache.get(key);
-          var concesion = cached ? cached.concesionName : (concesionesIndex.length ? getConcessionNameFromPoint(lon, lat) : null);
-          var isInConcession = !!concesion;
-
-          var depto = (p.depto != null) ? p.depto : "N/D";
-          var muni  = (p.municipio != null) ? p.municipio : "N/D";
-
-          var card = document.createElement("div");
-          card.className = "cardPoint" + (isInConcession ? " cardAlert" : "");
-
-          card.innerHTML =
-            "🔥 <b>Fecha:</b> " + formatAcqTime(p.acq_time) +
-            (isInConcession ? ' <span class="badgeCon">EN CONCESIÓN</span>' : "") +
-            "<br>" +
-            "<b>Depto/Muni:</b> " + depto + " / " + muni + "<br>" +
-            "<b>Concesión:</b> " + (isInConcession ? concesion : "Fuera") + "<br>" +
-            "<b>Lat:</b> " + Number(lat).toFixed(5) + " &nbsp; <b>Lon:</b> " + Number(lon).toFixed(5);
-
-          card.addEventListener("click", function(){
-            map.flyTo([lat, lon], 14);
-          });
-
-          div.appendChild(card);
-        })(arr[j]);
-      }
-
-      if (!div.children.length){
-        div.innerHTML = '<div class="cardPoint">No se pudieron renderizar los últimos 10.</div>';
-      }
-    }
-
-    /* =========================
        Panel concesión
     ========================== */
     var chartConcesiones = null;
@@ -787,11 +736,10 @@
       var listItems = [];
 
       data.features.forEach(f => {
-        var coords = getCoords(f);
-        if (!coords) return;
+        if (!f.geometry || !f.geometry.coordinates) return;
 
-        var lon = coords[0];
-        var lat = coords[1];
+        var lon = f.geometry.coordinates[0];
+        var lat = f.geometry.coordinates[1];
 
         var key = getFeatureKey(f);
         var cached = spatialCache.get(key);
@@ -856,7 +804,7 @@
           var card = document.createElement("div");
           card.className = "cardPoint";
           card.innerHTML = `
-            🔥 <b>Concesión:</b> ${item.concesion}<br>
+            ⚠️ <b>Concesión:</b> ${item.concesion}<br>
             <b>Fecha y hora:</b> ${item.fecha}<br>
             <b>Lat:</b> ${item.lat.toFixed(5)} &nbsp; <b>Lon:</b> ${item.lon.toFixed(5)}
           `;
@@ -873,6 +821,73 @@
     }
 
     /* =========================
+       ✅ Render lista últimos 10
+    ========================== */
+    function renderLast10List(data){
+      var lista = document.getElementById("listaLast10");
+      lista.innerHTML = "";
+
+      if (!data || !data.features || !data.features.length){
+        lista.innerHTML = `<div class="last10Card">No hay datos en el rango actual.</div>`;
+        return;
+      }
+
+      // tomar solo los 10 más recientes (por acq_time)
+      var items = data.features
+        .map(f => {
+          var p = f.properties || {};
+          var lat = (p.latitude != null) ? Number(p.latitude) : Number(f.geometry?.coordinates?.[1]);
+          var lon = (p.longitude != null) ? Number(p.longitude) : Number(f.geometry?.coordinates?.[0]);
+          var t = parseTimeMsFromFeature(f);
+
+          var key = getFeatureKey(f);
+          var cached = spatialCache.get(key);
+          var concesionName = cached ? cached.concesionName : (concesionesIndex.length ? getConcessionNameFromPoint(lon, lat) : null);
+
+          return {
+            f: f,
+            key: key,
+            t: t,
+            lat: lat,
+            lon: lon,
+            depto: p.depto || "N/D",
+            municipio: p.municipio || "N/D",
+            acq: p.acq_time,
+            concesionName: concesionName,
+            inCon: !!concesionName
+          };
+        })
+        .filter(x => !isNaN(x.t))
+        .sort((a,b)=> b.t - a.t)
+        .slice(0, 10);
+
+      if (!items.length){
+        lista.innerHTML = `<div class="last10Card">No se pudieron leer fechas (acq_time) del servicio.</div>`;
+        return;
+      }
+
+      items.forEach((it, idx) => {
+        var card = document.createElement("div");
+        card.className = "last10Card" + (it.inCon ? " blink-red" : "");
+
+        var concesionTxt = it.inCon ? it.concesionName : "Fuera";
+
+        card.innerHTML = `
+          ⚠️ <b>${idx+1}. ${formatAcqTime(it.acq)}</b><br>
+          <b>Depto:</b> ${it.depto} &nbsp; <b>Municipio:</b> ${it.municipio}<br>
+          <b>Lat:</b> ${it.lat.toFixed(5)} &nbsp; <b>Lon:</b> ${it.lon.toFixed(5)}<br>
+          <b>Concesión:</b> ${concesionTxt}
+        `;
+
+        card.addEventListener("click", function(){
+          map.flyTo([it.lat, it.lon], 14);
+        });
+
+        lista.appendChild(card);
+      });
+    }
+
+    /* =========================
        Excel
     ========================== */
     function fmtDateForExcel(v){
@@ -882,9 +897,8 @@
 
     function featureToRow(f){
       var p = f.properties || {};
-      var coords = getCoords(f);
-      var lon = coords ? coords[0] : "";
-      var lat = coords ? coords[1] : "";
+      var lat = (p.latitude != null) ? p.latitude : (f.geometry?.coordinates?.[1]);
+      var lon = (p.longitude != null) ? p.longitude : (f.geometry?.coordinates?.[0]);
 
       return {
         latitude:  (lat !== undefined ? Number(lat) : ""),
@@ -904,25 +918,31 @@
 
       if (scope === "concesiones"){
         return feats.filter(f => {
-          var coords = getCoords(f);
-          if (!coords) return false;
-          return pointInAnyConcession(coords[0], coords[1]);
+          var p = f.properties || {};
+          var lon = (p.longitude != null) ? p.longitude : (f.geometry?.coordinates?.[0]);
+          var lat = (p.latitude  != null) ? p.latitude  : (f.geometry?.coordinates?.[1]);
+          if (lon === undefined || lat === undefined) return false;
+          return pointInAnyConcession(Number(lon), Number(lat));
         });
       }
 
       if (scope === "rbm"){
         return feats.filter(f => {
-          var coords = getCoords(f);
-          if (!coords) return false;
-          return pointInAnyRBM(coords[0], coords[1]);
+          var p = f.properties || {};
+          var lon = (p.longitude != null) ? p.longitude : (f.geometry?.coordinates?.[0]);
+          var lat = (p.latitude  != null) ? p.latitude  : (f.geometry?.coordinates?.[1]);
+          if (lon === undefined || lat === undefined) return false;
+          return pointInAnyRBM(Number(lon), Number(lat));
         });
       }
 
       return feats.filter(f => {
-        var coords = getCoords(f);
-        if (!coords) return false;
+        var p = f.properties || {};
+        var lon = (p.longitude != null) ? p.longitude : (f.geometry?.coordinates?.[0]);
+        var lat = (p.latitude  != null) ? p.latitude  : (f.geometry?.coordinates?.[1]);
+        if (lon === undefined || lat === undefined) return false;
         if (!gtFeature) return true;
-        return pointInFeature(coords[0], coords[1], gtFeature);
+        return pointInFeature(Number(lon), Number(lat), gtFeature);
       });
     }
 
@@ -981,8 +1001,6 @@
 
     /* =========================
        MAPA: dibujar puntos
-       ✅ Últimos 10 = fuego
-       ✅ Si el último 10 cae en concesión => también parpadea/pulsa
     ========================== */
     function updateMap(data, useCluster) {
       mapData = data;
@@ -1004,30 +1022,19 @@
 
       var todayData = {
         type: "FeatureCollection",
-        features: (data.features || []).filter(f => new Date((f.properties || {}).acq_time).toISOString().split('T')[0] === today)
+        features: (data.features || []).filter(f => new Date(f.properties.acq_time).toISOString().split('T')[0] === today)
       };
 
       var otherData = {
         type: "FeatureCollection",
-        features: (data.features || []).filter(f => new Date((f.properties || {}).acq_time).toISOString().split('T')[0] !== today)
+        features: (data.features || []).filter(f => new Date(f.properties.acq_time).toISOString().split('T')[0] !== today)
       };
 
       function pointLayer(feature, latlng){
         var key = getFeatureKey(feature);
 
         if (last10Keys.has(key)){
-          // ✅ Si está en concesión => icono con animación extra
-          var cached = spatialCache.get(key);
-          var isInCon = cached ? !!cached.concesionName : false;
-
-          // Si aún no hay cache (por orden de carga), lo calculamos rápido si ya hay índice
-          if (!cached && concesionesIndex.length){
-            var cName = getConcessionNameFromPoint(latlng.lng, latlng.lat);
-            isInCon = !!cName;
-            spatialCache.set(key, { gt:true, rbm:false, con:isInCon, concesionName:cName });
-          }
-
-          return L.marker(latlng, { icon: makeFireDivIcon(62, isInCon), riseOnHover:true });
+          return L.marker(latlng, { icon: makeFireDivIcon(62), riseOnHover:true });
         }
 
         var p = feature.properties || {};
@@ -1043,11 +1050,10 @@
 
       function bindPopup(feature, layer){
         var p = feature.properties || {};
-        var coords = getCoords(feature) || [feature.geometry.coordinates[0], feature.geometry.coordinates[1]];
         var popupContent = `
           <strong>Hora de detección:</strong> ${formatAcqTime(p.acq_time)}<br>
-          <strong>Latitud:</strong> ${formatCoordinate(p.latitude ?? coords[1])}<br>
-          <strong>Longitud:</strong> ${formatCoordinate(p.longitude ?? coords[0])}<br>
+          <strong>Latitud:</strong> ${formatCoordinate(p.latitude ?? feature.geometry.coordinates[1])}<br>
+          <strong>Longitud:</strong> ${formatCoordinate(p.longitude ?? feature.geometry.coordinates[0])}<br>
           <strong>Categoría:</strong> ${p.concat_2 || 'N/D'}<br>
           <strong>Depto:</strong> ${p.depto || 'N/D'}<br>
           <strong>Municipio:</strong> ${p.municipio || 'N/D'}<br>
@@ -1065,9 +1071,10 @@
       updateSummary((data.features || []).length);
       updateSpatialCounters(data);
       actualizarGraficoConcesiones(data);
-
-      // ✅ render lista de últimos 10
       renderLast10List(data);
+
+      // refrescar headings porque el control se crea una vez
+      setTimeout(beautifyHeadings, 50);
     }
 
     /* =========================
@@ -1077,7 +1084,7 @@
       return {
         type: "FeatureCollection",
         features: (data.features || []).filter(feature => {
-          var acqDate = new Date((feature.properties || {}).acq_time).toISOString().split('T')[0];
+          var acqDate = new Date(feature.properties.acq_time).toISOString().split('T')[0];
           return acqDate === date;
         })
       };
@@ -1085,7 +1092,7 @@
 
     function updateChart(data) {
       var dateCounts = (data.features || []).reduce((acc, feature) => {
-        var date = new Date((feature.properties || {}).acq_time).toISOString().split('T')[0];
+        var date = new Date(feature.properties.acq_time).toISOString().split('T')[0];
         acc[date] = (acc[date] || 0) + 1;
         return acc;
       }, {});
@@ -1144,7 +1151,7 @@
     /* =========================
        RANGOS
     ========================== */
-    async function applyRange(hours) {
+    async function applyRange(hours, forceNoCache) {
       currentRangeHours = hours;
       selectedBarIndex = null;
       document.getElementById('resetRangeButton').style.display = 'none';
@@ -1156,9 +1163,9 @@
         spatialCache = new Map();
 
         setLoadingProgress(10, "Consultando servicio…");
-        rangeData = await fetchRangeFromServer(hours);
+        rangeData = await fetchRangeFromServer(hours, !!forceNoCache);
 
-        setLoadingProgress(95, "Pintando mapa…");
+        setLoadingProgress(85, "Calculando capas…");
         updateChart(rangeData);
         updateMap(rangeData, document.getElementById('clusterCheckbox').checked);
         chart.update();
@@ -1173,7 +1180,7 @@
     }
 
     /* =========================
-       RBM + Concesiones
+       RBM + Concesiones (overlays)
     ========================== */
     var rbmLayer = L.geoJSON(null, { style: () => ({ color:'blue', weight:1, fillOpacity:0 }) });
     concesionesLayer = L.geoJSON(null, { style: concesionStyle });
@@ -1183,7 +1190,7 @@
         rbmLayer.addData(d);
         rbmFeatures = (d && d.features) ? d.features : [];
         rbmIndex = buildBBoxIndex(rbmFeatures);
-      });
+      }).catch(e => console.warn("RBM no cargó:", e));
 
     fetch('https://raw.githubusercontent.com/nestorcaalsuc/RBM/main/Concesiones.geojson')
       .then(r => r.json()).then(d => {
@@ -1191,24 +1198,48 @@
         concesionesFeatures = (d && d.features) ? d.features : [];
         concesionesIndex = buildBBoxIndex(concesionesFeatures);
         updateConcessionStylesFromCounts({});
-        // refrescar contadores si ya había datos
-        if (mapData || rangeData){
-          updateSpatialCounters(mapData || rangeData);
-          renderLast10List(mapData || rangeData);
-        }
-      });
+      }).catch(e => console.warn("Concesiones no cargó:", e));
 
     fetch(GT_GEOJSON_URL)
       .then(r => r.json())
-      .then(d => { gtFeature = (d.type === "Feature") ? d : (d.features && d.features[0]); });
-
-    L.control.layers(null, {
-      "Concesiones Forestales": concesionesLayer,
-      "Límite RBM": rbmLayer
-    }).addTo(map);
+      .then(d => { gtFeature = (d.type === "Feature") ? d : (d.features && d.features[0]); })
+      .catch(e => console.warn("GT no cargó:", e));
 
     concesionesLayer.addTo(map);
     rbmLayer.addTo(map);
+
+    /* =========================
+       ⭐ CONTROL DE CAPAS CON ENCABEZADOS
+       (y sin checkbox en títulos)
+    ========================== */
+    function HeadingLayer(){ return L.layerGroup(); }
+
+    const OVERLAYS_HEADERS = {
+      '<span class="lc-heading">🧭 <big>Límites y Gestión</big></span>': HeadingLayer(),
+      '<big> 🌲 Concesiones Forestales</big>': concesionesLayer,
+      '<big> 🌿 Límite RBM</big>': rbmLayer,
+      //'<span class="lc-heading">⚠️ <big>Monitoreo de Incendios</big></span>': HeadingLayer()
+    };
+
+    const controlCapas = L.control.layers(
+      capas,
+      OVERLAYS_HEADERS,
+      { collapsed:true, position:'topleft' }
+    ).addTo(map);
+
+    function beautifyHeadings(){
+      const cont = controlCapas._container?.querySelector('.leaflet-control-layers-overlays');
+      if (!cont) return;
+      cont.querySelectorAll('label').forEach(label => {
+        if (label.innerHTML.includes('lc-heading')){
+          label.classList.add('is-heading');
+        }
+      });
+    }
+    setTimeout(beautifyHeadings, 100);
+
+    /* ✅ Escala */
+    L.control.scale({ imperial:false, position:'bottomleft' }).addTo(map);
 
     /* =========================
        Draw control
@@ -1240,23 +1271,31 @@
     });
 
     /* =========================
+       Eventos UI
+    ========================== */
+    document.getElementById('todayButton').addEventListener('click', () => applyRange(24, false));
+    document.getElementById('last48HoursButton').addEventListener('click', () => applyRange(48, false));
+    document.getElementById('last72HoursButton').addEventListener('click', () => applyRange(72, false));
+    document.getElementById('last8DaysButton').addEventListener('click', () => applyRange(8 * 24, false));
+
+    document.getElementById('resetRangeButton').addEventListener('click', function(){
+      applyRange(currentRangeHours, false);
+    });
+
+    document.getElementById('clusterCheckbox').addEventListener('change', function(){
+      updateMap(mapData || rangeData, this.checked);
+    });
+
+    // ✅ Botón refrescar (sin caché)
+    document.getElementById('btnRefresh').addEventListener('click', function(){
+      applyRange(currentRangeHours, true);
+    });
+
+    /* =========================
        INIT
     ========================== */
     (async function init(){
-      await applyRange(24);
-
-      document.getElementById('todayButton').addEventListener('click', () => applyRange(24));
-      document.getElementById('last48HoursButton').addEventListener('click', () => applyRange(48));
-      document.getElementById('last72HoursButton').addEventListener('click', () => applyRange(72));
-      document.getElementById('last8DaysButton').addEventListener('click', () => applyRange(8 * 24));
-
-      document.getElementById('resetRangeButton').addEventListener('click', function(){
-        applyRange(currentRangeHours);
-      });
-
-      document.getElementById('clusterCheckbox').addEventListener('change', function(){
-        updateMap(mapData || rangeData, this.checked);
-      });
+      await applyRange(24, false);
     })();
   </script>
 </body>
