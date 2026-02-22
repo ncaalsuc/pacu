@@ -15,130 +15,116 @@
   <!-- Leaflet Draw -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
 
-  <!-- Leaflet Fullscreen (RECOMENDADO: este plugin funciona bien en web + móvil) -->
+  <!-- Leaflet Fullscreen -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet.fullscreen@2.4.0/Control.FullScreen.css" />
 
   <style>
-    body { margin:0; padding:0; font-family:Arial,sans-serif; background-color:#2D3748; color:white; }
-    #header { background-color:#1E3A8A; color:white; padding:10px; text-align:center; }
-    #map-container { display:flex; flex-wrap:nowrap; position:relative; }
-    #map { width:60%; height:800px; position:relative; }
-    #controls { width:40%; padding:20px; background-color:#2D3748; color:white; overflow-y:auto; max-height:800px; }
-
-    #summary { background-color:#4A5568; padding:12px; margin-bottom:16px; border-radius:12px; text-align:center; box-shadow:0 8px 18px rgba(0,0,0,0.25); }
-    #summary h2 { margin:0; font-size:18px; }
-    #summary p { margin:6px 0; font-size:34px; font-weight:bold; }
-
-    #chart-container, #filters, #last10-panel, #concesion-panel {
-      background-color:#4A5568;
-      padding:14px;
-      margin-bottom:16px;
-      border-radius:12px;
-      box-shadow:0 8px 18px rgba(0,0,0,0.25);
+    :root{
+      --bg:#1f2937;         /* slate-800 */
+      --panel:#111827;      /* gray-900 */
+      --card:#0b1220;       /* deep */
+      --card2:#0f172a;      /* slate-900 */
+      --border:rgba(255,255,255,.10);
+      --muted:rgba(255,255,255,.72);
+      --muted2:rgba(255,255,255,.55);
+      --brand:#38B2AC;
+      --brand2:#319795;
+      --danger:#ff4d4d;
+      --shadow: 0 16px 50px rgba(0,0,0,.45);
+      --shadow2: 0 10px 26px rgba(0,0,0,.35);
+      --r:16px;
     }
 
-    #chart-container { height:260px; position:relative; }
-    #chart { width:100% !important; height:100% !important; }
-
-    #filters h3 { margin:0; }
-    #filters button, .btnXLS, .btnRefresh {
-      width:100%;
-      margin:5px 0;
-      padding:10px;
-      background-color:#38B2AC;
+    *{ box-sizing:border-box; }
+    body{
+      margin:0;
+      font-family: Arial, sans-serif;
       color:white;
-      border:none;
-      border-radius:8px;
-      cursor:pointer;
-      font-weight:bold;
+      background: radial-gradient(1200px 600px at 30% -10%, rgba(56,178,172,.18), transparent 55%),
+                  radial-gradient(900px 500px at 90% 0%, rgba(59,130,246,.18), transparent 55%),
+                  var(--bg);
     }
-    #filters button:hover, .btnXLS:hover, .btnRefresh:hover { background-color:#319795; }
 
-    #resetRangeButton {
-      background-color:#CBD5E0;
-      color:#1A202C;
-      font-weight:bold;
-      display:none;
-    }
-    #resetRangeButton:hover { background-color:#E2E8F0; }
-
-    .area-tooltip { background:rgba(0,0,0,0.5); border:none; color:#f8d5e4; }
-
-    #concesion-panel h3, #last10-panel h3 { margin:0 0 10px 0; }
-
-    #totalVisibleBox{
-      margin-top:12px;
+    /* HEADER */
+    #header{
+      background: linear-gradient(180deg, rgba(30,58,138,1), rgba(30,58,138,.92));
+      border-bottom: 1px solid rgba(255,255,255,.10);
+      padding: 12px 14px;
       text-align:center;
-      font-size:18px;
-      font-weight:bold;
-      color:#FF6B6B;
+    }
+    #header h1{
+      margin:0;
+      font-size: 18px;
+      font-weight: 900;
+      letter-spacing:.2px;
+    }
+    #header h2{
+      margin:6px 0 0 0;
+      font-size: 13px;
+      font-weight: 700;
+      opacity:.95;
+    }
+    #header p{
+      margin:6px 0 0 0;
+      font-size: 12px;
+      opacity:.9;
+    }
+    #header a{ color:white; text-decoration:underline; }
+
+    /* LAYOUT */
+    #map-container{
+      display:flex;
+      gap:14px;
+      padding:14px;
+      align-items:stretch;
+      max-width: 1400px;
+      margin: 0 auto;
     }
 
-    #listaConcesiones, #listaLast10{
-      margin-top:12px;
+    /* LEFT COLUMN */
+    #left-col{
+      width:90%;
       display:flex;
       flex-direction:column;
-      gap:10px;
+      gap:12px;
+      min-width: 520px;
     }
 
-    .cardPoint{
-      background:rgba(255,255,255,0.08);
-      border:1px solid rgba(255,255,255,0.10);
-      border-radius:12px;
-      padding:12px;
-      cursor:pointer;
-      transition:transform .12s ease, background .12s ease;
+    /* MAP WRAP */
+    #map-wrap{
+      position:relative;
+      border-radius: 18px;
+      overflow:hidden;
+      border:1px solid var(--border);
+      box-shadow: var(--shadow);
+      background: rgba(0,0,0,.15);
     }
-    .cardPoint:hover{ background:rgba(255,255,255,0.12); transform:translateY(-1px); }
-    .cardPoint b{ color:#fff; }
-    .muted { color: rgba(255,255,255,0.8); font-size: 12px; }
+    #map{ width:100%; height: 800px; }
 
-    /* ✅ Cards especiales: últimos 10 */
-    .last10Card{
-      background:rgba(255,255,255,0.08);
-      border:1px solid rgba(255,255,255,0.10);
-      border-radius:12px;
-      padding:12px;
-      cursor:pointer;
-      transition:transform .12s ease, background .12s ease;
-    }
-    .last10Card:hover{ background:rgba(255,255,255,0.12); transform:translateY(-1px); }
-
-    /* ✅ Si cae dentro de concesión => rojo intermitente */
-    .blink-red{
-      border:1px solid rgba(255,60,60,0.60) !important;
-      box-shadow: 0 0 0 2px rgba(255,60,60,0.30), 0 0 18px rgba(255,60,60,0.35);
-      animation: blinkBorder 1s infinite;
-    }
-    @keyframes blinkBorder{
-      0%   { background:rgba(255,60,60,0.10); }
-      50%  { background:rgba(255,60,60,0.28); }
-      100% { background:rgba(255,60,60,0.10); }
-    }
-
-    /* ✅ Overlay de carga */
+    /* LOADING OVERLAY */
     #loadingOverlay{
       position:absolute;
       inset:0;
       display:none;
       align-items:center;
       justify-content:center;
-      background:rgba(0,0,0,0.35);
+      background:rgba(0,0,0,.38);
       z-index:9999;
+      backdrop-filter: blur(3px);
     }
     #loadingOverlay .box{
-      background:rgba(45,55,72,0.95);
-      border:1px solid rgba(255,255,255,0.12);
+      background: rgba(17,24,39,.95);
+      border:1px solid rgba(255,255,255,.12);
       padding:14px 16px;
-      border-radius:12px;
-      box-shadow:0 10px 24px rgba(0,0,0,0.35);
+      border-radius:14px;
+      box-shadow: 0 18px 45px rgba(0,0,0,.45);
+      min-width: 320px;
       text-align:center;
-      min-width:280px;
     }
     #loadingOverlay .bar{
       width:100%;
       height:10px;
-      background:rgba(255,255,255,0.14);
+      background:rgba(255,255,255,.12);
       border-radius:99px;
       overflow:hidden;
       margin-top:10px;
@@ -146,30 +132,437 @@
     #loadingOverlay .bar > div{
       height:100%;
       width:0%;
-      background:rgba(56,178,172,0.9);
-      transition:width .15s ease;
+      background:rgba(56,178,172,.92);
+      transition: width .15s ease;
     }
     #loadingOverlay .small{
       margin-top:8px;
       font-size:12px;
-      color:rgba(255,255,255,0.85);
+      color:rgba(255,255,255,.84);
     }
 
-    /* ===============================
-       ⭐ CONTROL DE CAPAS PROFESIONAL
-       (Encabezados sin checkbox)
-    ================================ */
+    /* BELOW MAP SECTION (as your screenshot) */
+    #below-map{
+      border-radius:18px;
+      overflow:hidden;
+      border:1px solid var(--border);
+      box-shadow: var(--shadow2);
+      background: linear-gradient(180deg, rgba(15,23,42,.92), rgba(15,23,42,.88));
+    }
+
+    .below-hero{
+      padding:16px 16px 14px 16px;
+      background: linear-gradient(180deg, rgba(134, 160, 90, .80), rgba(134,160,90,.70));
+      border-bottom:1px solid rgba(255,255,255,.10);
+    }
+    .below-title{
+      font-weight:900;
+      font-size:16px;
+      margin:0;
+    }
+    .below-sub{
+      margin-top:8px;
+      font-size:12px;
+      line-height:1.45;
+      color: rgba(255,255,255,.92);
+      max-width: 900px;
+    }
+
+    .below-3cards{
+      padding: 14px 14px 0 14px;
+      display:grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap:12px;
+    }
+    .bcard{
+      background: rgba(255,255,255,.05);
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:16px;
+      overflow:hidden;
+      box-shadow: 0 12px 28px rgba(0,0,0,.28);
+      display:flex;
+      flex-direction:column;
+      min-height: 230px;
+    }
+    .bcard-media{
+      height: 110px;
+      overflow:hidden;
+      background: rgba(0,0,0,.20);
+    }
+    .bcard-media img{
+      width:100%;
+      height:100%;
+      object-fit: cover;
+      display:block;
+      filter: saturate(1.05) contrast(1.05);
+    }
+    .bcard-body{
+      padding: 12px 12px 12px 12px;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      flex:1;
+    }
+    .bcard h4{
+      margin:0;
+      font-size:13px;
+      font-weight:900;
+    }
+    .bcard p{
+      margin:0;
+      color: rgba(255,255,255,.75);
+      font-size:12px;
+      line-height:1.45;
+      flex:1;
+    }
+    .bcard-btn{
+      width:100%;
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.10);
+      color: rgba(255,255,255,.92);
+      cursor:pointer;
+      font-weight:900;
+    }
+    .bcard-btn:hover{ background: rgba(255,255,255,.16); }
+
+    /* Slider Opinion */
+    .below-opinion{
+      margin: 14px;
+      border-radius:16px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.18);
+      overflow:hidden;
+    }
+    .below-opinion-head{
+      padding:12px 14px;
+      background: rgba(0,0,0,.22);
+      border-bottom:1px solid rgba(255,255,255,.08);
+    }
+    .below-opinion-head .t{
+      font-weight:900;
+      font-size:13px;
+      margin:0;
+    }
+    .below-opinion-head .s{
+      margin-top:4px;
+      font-size:12px;
+      color: rgba(255,255,255,.74);
+    }
+
+    .bslider{
+      position:relative;
+      overflow:hidden;
+    }
+    .bslides{
+      display:flex;
+      width:200%;
+      transform: translateX(0%);
+      transition: transform .35s ease;
+    }
+    .bslide{
+      width:50%;
+      padding:14px;
+    }
+    .bgrid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:12px;
+    }
+    .bquote{
+      background: rgba(255,255,255,.05);
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:14px;
+      padding:12px;
+      font-size:12px;
+      line-height:1.5;
+      color: rgba(255,255,255,.88);
+      box-shadow: 0 10px 22px rgba(0,0,0,.25);
+      min-height: 120px;
+    }
+    .bmeta{
+      margin-top:10px;
+      font-weight:900;
+      font-size:12px;
+      color: rgba(255,255,255,.92);
+    }
+
+    .bdots{
+      display:flex;
+      gap:8px;
+      justify-content:center;
+      padding: 0 0 14px 0;
+    }
+    .bdot{
+      width:8px;
+      height:8px;
+      border-radius:99px;
+      background: rgba(255,255,255,.35);
+      cursor:pointer;
+      border:1px solid rgba(255,255,255,.22);
+    }
+    .bdot.active{
+      background: rgba(56,178,172,.95);
+      border-color: rgba(56,178,172,.95);
+      box-shadow: 0 0 0 4px rgba(56,178,172,.18);
+    }
+
+    .below-foot{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      padding: 10px 14px 14px 14px;
+      color: rgba(255,255,255,.65);
+      font-size:12px;
+      border-top:1px solid rgba(255,255,255,.08);
+      background: rgba(0,0,0,.12);
+      flex-wrap:wrap;
+    }
+    .below-links{
+      display:flex;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+    .below-links a{
+      color: rgba(255,255,255,.80);
+      text-decoration:none;
+      border-bottom:1px dashed rgba(255,255,255,.35);
+    }
+    .below-links a:hover{ color:white; border-bottom-color:white; }
+
+    /* RIGHT COLUMN */
+    #controls{
+      width:40%;
+      border-radius: 18px;
+      border:1px solid var(--border);
+      box-shadow: var(--shadow);
+      background: linear-gradient(180deg, rgba(17,24,39,.92), rgba(17,24,39,.86));
+      overflow:hidden;
+      display:flex;
+      flex-direction:column;
+      min-width: 50px;
+      max-height: calc(1285px + 12px + 470px);
+    }
+
+    #controls-scroll{
+      padding:14px;
+      overflow:auto;
+    }
+
+    /* Panels */
+    .panel{
+      background: rgba(255,255,255,.04);
+      border:1px solid rgba(255,255,255,.10);
+      border-radius: 16px;
+      padding: 12px;
+      margin-bottom: 12px;
+      box-shadow: 0 10px 24px rgba(0,0,0,.25);
+    }
+    .panel h3{
+      margin:0 0 10px 0;
+      font-size:13px;
+      font-weight:900;
+    }
+
+    /* SUMMARY */
+    #summary{
+      text-align:left;
+    }
+    #summary .big{
+      font-size: 34px;
+      font-weight: 900;
+      margin-top: 6px;
+      letter-spacing: .5px;
+    }
+    .kpi{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      margin-top:10px;
+    }
+    .kpi .row{
+      padding:10px;
+      border-radius:14px;
+      background: rgba(0,0,0,.18);
+      border:1px solid rgba(255,255,255,.08);
+      color: rgba(255,255,255,.92);
+      font-size:12px;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+    }
+    .kpi .row b{ font-size:12px; }
+    .note{
+      margin-top:10px;
+      font-size:12px;
+      color: rgba(255,255,255,.72);
+    }
+    .note b{ color: var(--danger); }
+
+    /* Last10 */
+    #last10-panel .head{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+    }
+    .btnRefresh{
+      padding:6px 10px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(56,178,172,.20);
+      color: rgba(255,255,255,.92);
+      cursor:pointer;
+      font-weight:900;
+      font-size:12px;
+    }
+    .btnRefresh:hover{ background: rgba(56,178,172,.28); }
+
+    .muted{ color: var(--muted); font-size:12px; }
+    .muted2{ color: var(--muted2); font-size:12px; }
+
+    #listaLast10{
+      margin-top:10px;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+    }
+    .last10Card{
+      background: rgba(255,255,255,.04);
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:14px;
+      padding:10px;
+      cursor:pointer;
+      transition: transform .12s ease, background .12s ease;
+      box-shadow: 0 10px 18px rgba(0,0,0,.22);
+      font-size:12px;
+      line-height:1.35;
+    }
+    .last10Card:hover{ background: rgba(255,255,255,.07); transform: translateY(-1px); }
+
+    .blink-red{
+      border:1px solid rgba(255,60,60,.65) !important;
+      box-shadow: 0 0 0 2px rgba(255,60,60,.25), 0 0 18px rgba(255,60,60,.30);
+      animation: blinkBorder 1s infinite;
+    }
+    @keyframes blinkBorder{
+      0%   { background:rgba(255,60,60,.08); }
+      50%  { background:rgba(255,60,60,.20); }
+      100% { background:rgba(255,60,60,.08); }
+    }
+
+    /* Chart box */
+    #chart-container{ height: 260px; }
+    #chart{ width:100% !important; height:100% !important; }
+
+    /* Filters */
+    #filters .row{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      margin-bottom:10px;
+    }
+    #filters label{
+      font-size:12px;
+      color: rgba(255,255,255,.88);
+      font-weight:700;
+    }
+    #filters input[type="checkbox"]{
+      transform: scale(1.05);
+      accent-color: var(--brand);
+      cursor:pointer;
+    }
+    .btn{
+      width:100%;
+      margin:6px 0;
+      padding:10px 12px;
+      background-color: rgba(56,178,172,.18);
+      color:white;
+      border:1px solid rgba(255,255,255,.12);
+      border-radius:12px;
+      cursor:pointer;
+      font-weight:900;
+      font-size:12px;
+    }
+    .btn:hover{ background-color: rgba(56,178,172,.26); }
+
+    #resetRangeButton{
+      background: rgba(255,255,255,.14);
+    }
+    #resetRangeButton:hover{ background: rgba(255,255,255,.18); }
+
+    /* Concesion panel */
+    #concesion-panel .chartbox{
+      height: 260px;
+      position: relative;
+      margin-bottom: 10px;
+    }
+
+    .btnXLS{
+      width:100%;
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(56,178,172,.18);
+      color: rgba(255,255,255,.92);
+      cursor:pointer;
+      font-weight:900;
+      font-size:12px;
+      margin-top:8px;
+    }
+    .btnXLS:hover{ background: rgba(56,178,172,.26); }
+
+    #totalVisibleBox{
+      margin-top:10px;
+      text-align:center;
+      font-size:12px;
+      font-weight:900;
+      color: rgba(255,255,255,.90);
+      background: rgba(0,0,0,.18);
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:14px;
+      padding:10px;
+    }
+    #totalVisibleBox span{ color: var(--danger); }
+
+    #listaConcesiones{
+      margin-top:10px;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+    }
+    .cardPoint{
+      background: rgba(255,255,255,.04);
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:14px;
+      padding:10px;
+      cursor:pointer;
+      transition: transform .12s ease, background .12s ease;
+      box-shadow: 0 10px 18px rgba(0,0,0,.22);
+      font-size:12px;
+      line-height:1.35;
+    }
+    .cardPoint:hover{ background: rgba(255,255,255,.07); transform: translateY(-1px); }
+
+    /* Draw tooltip */
+    .area-tooltip{ background:rgba(0,0,0,0.55); border:none; color:#f8d5e4; }
+
+    /* Layers control headings (kept) */
     .leaflet-control-layers-expanded{
       border-radius:16px;
       overflow:hidden;
-      background: rgba(45,55,72,0.97);
-      border:1px solid rgba(255,255,255,0.10);
+      background: rgba(17,24,39,.96);
+      border:1px solid rgba(255,255,255,.10);
       box-shadow: 0 16px 40px rgba(0,0,0,0.45);
       padding:10px;
     }
     .lc-heading{
       display:block;
-      font-weight:800;
+      font-weight:900;
       padding:8px 10px;
       margin:10px 0 6px 0;
       border-radius:12px;
@@ -188,11 +581,21 @@
     .leaflet-control-layers-overlays label,
     .leaflet-control-layers-base label{
       padding:6px 4px;
-      font-size:14px;
+      font-size:13px;
       color:white;
     }
-    .leaflet-control-layers-base{
-      margin-bottom:8px;
+
+    /* Responsive */
+    @media (max-width: 1200px){
+      #map-container{ flex-direction:column; }
+      #left-col, #controls{ width:100%; min-width: unset; }
+      #map{ height: 520px; }
+      #controls{ max-height: none; }
+    }
+    @media (max-width: 900px){
+      .below-3cards{ grid-template-columns:1fr; }
+      .bgrid{ grid-template-columns:1fr; }
+      #map{ height: 520px; }
     }
   </style>
 </head>
@@ -202,88 +605,301 @@
     <h1>"Geoportal para el monitoreo de puntos de calor en la Reserva de la Biósfera Maya"</h1>
     <h2>Proyecto desarrollado por: PACUNAM</h2>
     <p>Fuente:
-      <a href="https://www.earthdata.nasa.gov/learn/find-data/near-real-time/firms" target="_blank"
-         style="color:white;text-decoration:underline;">FIRMS</a>
+      <a href="https://www.earthdata.nasa.gov/learn/find-data/near-real-time/firms" target="_blank">FIRMS</a>
     </p>
   </div>
 
   <div id="map-container">
-    <div id="map"></div>
+    <!-- LEFT -->
+    <div id="left-col">
+      <div id="map-wrap">
+        <div id="map"></div>
 
-    <!-- ✅ Overlay de carga -->
-    <div id="loadingOverlay">
-      <div class="box">
-        <div style="font-weight:bold;">Cargando datos…</div>
-        <div class="bar"><div id="loadingBar"></div></div>
-        <div class="small" id="loadingText">Iniciando…</div>
-      </div>
-    </div>
-
-    <div id="controls">
-      <!-- SUMMARY -->
-      <div id="summary">
-        <h2>Cantidad de puntos de calor</h2>
-        <p><span id="total-points">0</span></p>
-
-        <div style="display:grid; gap:8px; margin-top:10px; text-align:left;">
-          <div style="background:rgba(0,0,0,0.18); padding:10px; border-radius:10px;">
-            🌲 Dentro de <b>Concesiones</b>: <span id="count-concessions" style="font-weight:bold;">0</span>
-          </div>
-          <div style="background:rgba(0,0,0,0.18); padding:10px; border-radius:10px;">
-            🌿 Dentro de <b>RBM</b>: <span id="count-rbm" style="font-weight:bold;">0</span>
-          </div>
-          <div style="background:rgba(0,0,0,0.18); padding:10px; border-radius:10px;">
-            🇬🇹 En <b>Guatemala</b>: <span id="count-gt" style="font-weight:bold;">0</span>
-          </div>
-          <div class="muted" style="padding:0 4px;">
-            Nota: Concesiones con puntos de calor se resaltan en <b style="color:#ff4d4d;">rojo</b>.
+        <!-- ✅ Overlay de carga -->
+        <div id="loadingOverlay">
+          <div class="box">
+            <div style="font-weight:900;">Cargando datos…</div>
+            <div class="bar"><div id="loadingBar"></div></div>
+            <div class="small" id="loadingText">Iniciando…</div>
           </div>
         </div>
       </div>
 
-      <!-- ✅ ÚLTIMOS 10 (LISTA) -->
-      <div id="last10-panel">
-        <h3>⚠️ Últimos 10 detectados (más recientes)</h3>
-        <button id="btnRefresh" class="btnRefresh">🔄 Actualizar datos</button>
-        <div class="muted">Los que caen dentro de concesión parpadean en rojo.</div>
-        <div id="listaLast10"></div>
-      </div>
-
-      <!-- GRÁFICO PRINCIPAL (por día) -->
-      <div id="chart-container">
-        <canvas id="chart"></canvas>
-      </div>
-
-      <!-- FILTROS -->
-      <div id="filters">
-        <label for="clusterCheckbox">Agrupar puntos de calor</label>
-        <input type="checkbox" id="clusterCheckbox" name="clusterCheckbox" checked><br><br>
-
-        <h3>Filtrar Rápido</h3>
-        <button id="todayButton">Últimas 24 Horas</button><br><br>
-        <button id="last48HoursButton">Últimas 48 Horas</button><br><br>
-        <button id="last72HoursButton">Últimas 72 Horas</button><br><br>
-        <button id="last8DaysButton">Últimos 8 Días</button><br><br>
-
-        <button id="resetRangeButton">🔙 Volver al rango</button>
-      </div>
-
-      <!-- PANEL: GRÁFICO POR CONCESIÓN + EXPORT EXCEL -->
-      <div id="concesion-panel">
-        <h3>🟡️ Gráfico de puntos de calor por Concesión</h3>
-
-        <div style="height:260px; position:relative;">
-          <canvas id="chartConcesiones"></canvas>
+      <!-- ✅ CONTENIDO SOLO DEBAJO DEL MAPA -->
+      <section id="below-map">
+        <div class="below-hero">
+          <div class="below-title">Sobre el Geoportal</div>
+          <div class="below-sub">
+            Esta iniciativa de tecnológica es impulsada por Fundación PACUNAM como apoyo a la gestión y protección 
+		   del patrimonio natural de Petén, orientada a la detección y visualización en línea de anomalías 
+		   térmicas (puntos de calor) para fortalecer la alerta temprana y la toma de decisiones frente a 
+		   incendios forestales. El geoportal integra como fuente principal los datos de NASA LANCE – FIRMS 
+		   (Fire Information for Resource Management System), que provee información casi en tiempo real de 
+		   incendios activos a partir de sensores satelitales como MODIS y VIIRS, permitiendo ubicar, filtrar 
+		   y dar seguimiento a eventos dentro de la RBM para coordinación operativa e intervenciones oportunas.
+          </div>
         </div>
 
-        <button id="btnXLSConcesiones" class="btnXLS">📥 Descargar Excel (Concesiones)</button>
-        <button id="btnXLSRBM" class="btnXLS" style="margin-top:8px;">📥 Descargar Excel (RBM)</button>
-        <button id="btnXLSGT" class="btnXLS" style="margin-top:8px;">📥 Descargar Excel (Guatemala)</button>
+        <!-- 3 tarjetas con imágenes -->
+        <div class="below-3cards">
+          <article class="bcard">
+            <div class="bcard-media">
+              <img loading="lazy" src="https://upload.wikimedia.org/wikipedia/commons/6/6c/Uaxactun1.jpg" alt="Prácticas de laboratorio">
+            </div>
+            <div class="bcard-body">
+              <h4>Uaxactún</h4>
+<p style="text-align: justify;">
+La comunidad de Uaxactún administra una de las concesiones forestales 
+comunitarias más grandes dentro de la Zona de Uso Múltiple de la RBM, 
+con derecho legal para el uso y manejo sostenible de recursos forestales 
+bajo contrato con el Estado guatemalteco. Este modelo comunitario contribuye 
+directamente a la conservación del bosque y a la seguridad económica de sus habitantes, 
+quienes integran actividades de aprovechamiento sostenible de madera y 
+productos no maderables, implementan planes de manejo forestal y operaciones de 
+control y protección del territorio, con impactos positivos tanto en la protección 
+de la biodiversidad como en el desarrollo local.
+</p>
+              <button class="bcard-btn" type="button" onclick="window.open('https://visituaxactun.com/omyc', '_blank');">Ver más</button>
+            </div>
+          </article>
 
-        <div id="totalVisibleBox">Total dentro de Concesiones: <span id="totalVisible">0</span></div>
-        <div id="listaConcesiones"></div>
-      </div>
+          <article class="bcard">
+            <div class="bcard-media">
+              <img loading="lazy" src="https://scontent.fgua13-1.fna.fbcdn.net/v/t39.30808-6/487297700_1202989548497568_1078029582785962156_n.jpg?_nc_cat=102&ccb=1-7&_nc_sid=7b2446&_nc_ohc=BaMx0SkcrYUQ7kNvwH7J0UN&_nc_oc=AdnHuHK1zqf6VNte83fbzaKxci7HCFH25ksbvCf_DAu812oELlPxAaLwX2onQK0l9XJkyivwYsSoXTMtIviaErXY&_nc_zt=23&_nc_ht=scontent.fgua13-1.fna&_nc_gid=mOas7bLIUvnjJstvKDGJNA&oh=00_AfuB1scQCc5LO8wnO5prMxg4uW-KDDDCHaqPYSKWOm8B0Q&oe=69A06BBF" alt="Tecnologías geoespaciales">
+            </div>
+            <div class="bcard-body">
+              <h4>Afisap - San Andres</h4>
+              <p style="text-align: justify;">
+La Asociación Forestal Integral de San Andrés (AFISAP) representa a la comunidad
+ concessionaria que gestiona su territorio forestal bajo esquemas de manejo sostenible. 
+ Reconocida como una de las organizaciones pioneras en concesiones comunitarias en Petén, 
+ su experiencia combina el uso legal de recursos forestales con medidas de conservación
+ y monitoreo a largo plazo, alineadas con las normas técnicas del Consejo Nacional de 
+ Áreas Protegidas (CONAP). Las actividades incluyen aprovechamiento de madera, control de 
+ fuego y lucha contra la tala ilegal en su territorio.
+</p>
+                <button class="bcard-btn" type="button" onclick="window.open('https://www.escuelamesoamericana.org/nuestro-trabajo/nucleos/asociacion-forestal-integral-san-andres-de-peten/', '_blank');">Ver más</button>
+            </div>
+          </article>
+
+          <article class="bcard">
+            <div class="bcard-media">
+              <img loading="lazy" src="https://scontent.fgua13-1.fna.fbcdn.net/v/t1.6435-9/131268737_2854303401510839_4891556671854688189_n.jpg?_nc_cat=104&ccb=1-7&_nc_sid=7b2446&_nc_ohc=A26Gm0BVdWwQ7kNvwF9j2Nr&_nc_oc=Adk93dKL0T9I3PfzGSUzKeo5xMHrDBFbz85i5B_1XcA1452maLKPWGoh1kJtGwCVCJswKrG__N54nL1YZ_yRFltU&_nc_zt=23&_nc_ht=scontent.fgua13-1.fna&_nc_gid=Ei1Fe-rYlE0YmnGNrMi9vQ&oh=00_Afs1hwa8rPRQQNHCTqtMFE5QDY-lc3hoEfoe-evkjHe4wQ&oe=69C1F991" alt="Prácticas de campo">
+            </div>
+            <div class="bcard-body">
+              <h4>Impulsores Suchitecos</h4>
+                   <p style="text-align: justify;">
+La comunidad de Río Chanchich, bajo la figura de la asociación Impulsores Suchitecos, 
+gestiona su concesión forestal con enfoque en el manejo sostenible de recursos naturales. 
+Esta concesión se caracteriza por integrar actividades de vigilancia y protección del bosque 
+con acciones productivas que apuntan a mejorar las condiciones de vida de sus miembros, reflejando 
+el papel clave de las comunidades locales en la conservación de grandes extensiones de bosque tropical.
+</p>
+              <button class="bcard-btn" type="button" onclick="window.open('https://impulsoressuchitecos.blogspot.com/', '_blank');">Ver más</button>
+            </div>
+          </article>
+        </div>
+
+
+
+ <!-- 3 tarjetas con imágenes -->
+        <div class="below-3cards">
+          <article class="bcard">
+            <div class="bcard-media">
+              <img loading="lazy" src="https://scontent.fgua13-1.fna.fbcdn.net/v/t39.30808-6/486611955_1088032963367089_5983874901131101633_n.jpg?_nc_cat=100&ccb=1-7&_nc_sid=7b2446&_nc_ohc=vA9Pxonz8ccQ7kNvwHwpuTt&_nc_oc=Adnw-vlX80s3lsdmVTtLdj6ZREmF5C_bFXJC3gQQ1N3Xx2db9koZnbn9JxA0WZPieqr6J4B1n34vHBuW3gglWmbt&_nc_zt=23&_nc_ht=scontent.fgua13-1.fna&_nc_gid=Gb4mUWl9s-mfadE737wHMQ&oh=00_AfvqKvPI-V-eKjHNt_3CxWzDP6UPaL8H3e1y0WytlLSZ8Q&oe=69A04A7F" alt="Prácticas de laboratorio">
+            </div>
+            <div class="bcard-body">
+              <h4>El Esfuerzo</h4>
+                   <p style="text-align: justify;">
+La concesión forestal comunitaria de El Esfuerzo representa un ejemplo de 
+cómo las comunidades locales gestionan de forma sostenible su territorio forestal 
+con respaldo técnico y legal. A través de planes de manejo forestal, esta 
+comunidad combina la conservación del bosque con actividades productivas 
+que generan beneficios económicos para sus familias, contribuyendo además a 
+la protección de la biodiversidad y al equilibrio ecológico en la RBM.
+</p>
+              <button class="bcard-btn" type="button" onclick="window.open('https://www.facebook.com/sociedadcivilelesfuerzo/', '_blank');">Ver más</button>
+            </div>
+          </article>
+
+          <article class="bcard">
+            <div class="bcard-media">
+              <img loading="lazy" src="https://turismocooperativacarmelita.com/wp-content/gallery/aldea-carmelita/DSC_0719.JPG" alt="Tecnologías geoespaciales">
+            </div>
+            <div class="bcard-body">
+              <h4>Carmelita</h4>
+                  <p style="text-align: justify;">
+La comunidad de Carmelita opera su concesión forestal comunitaria mediante una 
+cooperativa local legalmente constituida, la cual se encarga del uso y manejo sostenible 
+del bosque dentro de su área concedida. Su gestión se enfoca en la producción de madera y 
+productos forestales no maderables, así como en la protección y restauración de los 
+ecosistemas boscosos, todo bajo los lineamientos de manejo forestal sostenible establecidos 
+por la normativa de concesiones comunitarias de la RBM.
+</p>
+              <button class="bcard-btn" type="button" onclick="window.open('https://turismocooperativacarmelita.com/', '_blank');">Ver más</button>
+            </div>
+          </article>
+
+          <article class="bcard">
+            <div class="bcard-media">
+              <img loading="lazy" src="https://scontent.fgua13-1.fna.fbcdn.net/v/t39.30808-6/484085269_3472461686219939_8563485374434542402_n.jpg?_nc_cat=107&ccb=1-7&_nc_sid=13d280&_nc_ohc=4k7BdY2JHhYQ7kNvwHjB2gi&_nc_oc=Adk6GrmewAHIDd-8OjZOxuGDj7OdhcAsbD0_-iKpxvXEAh_SNFS1A_TWMWtaQgv5NSyDZFa2APCRx0Q4YkN48gM6&_nc_zt=23&_nc_ht=scontent.fgua13-1.fna&_nc_gid=Krz0kw2UV5dJUdeULzAdBA&oh=00_AfuDOoD7smvJsDAelAzxx7M4Q2Ig8HW_6KgG07xolWoDRA&oe=69A05C4F" alt="Prácticas de campo">
+            </div>
+            <div class="bcard-body">
+              <h4>GIBOR & BAREN</h4>
+                   <p style="text-align: justify;">
+GIBOR es una organización vinculada a la gestión forestal y ambiental 
+en la región norte de Guatemala, que desarrolla actividades relacionadas 
+con monitoreo territorial, supervisión técnica y cumplimiento ambiental en 
+áreas bajo manejo sostenible. Su trabajo se orienta al fortalecimiento de capacidades 
+locales para la conservación del bosque tropical, integrando inventarios forestales, 
+verificación de planes de manejo y acompañamiento en procesos de certificación y trazabilidad forestal.
+
+BAREN es una entidad que presta servicios técnicos ambientales y forestales, 
+apoyando procesos de evaluación, monitoreo y control en territorios bajo manejo comunitario
+ y productivo. Su labor incluye inspecciones ambientales, acompañamiento técnico en concesiones 
+ forestales y asesoría en cumplimiento normativo ante autoridades como CONAP y MARN.
+</p>
+                   <button class="bcard-btn" type="button" onclick="window.open('https://www.facebook.com/maderasbarencomercial?locale=ms_MY', '_blank');">Ver más</button>
+            </div>
+          </article>
+        </div>
+        <!-- Slider Opinión -->
+        <div class="below-opinion">
+          <div class="below-opinion-head">
+            <div class="t">Opiniones sobre el proyecto de monitoreo</div>
+            <div class="s">Espacio para compartir.</div>
+          </div>
+
+          <div class="bslider">
+            <div class="bslides" id="bslides">
+              <div class="bslide">
+                <div class="bgrid">
+                  <div class="bquote">
+                    “El Geoportal se ha convertido en una herramienta clave para la detección temprana de incendios dentro de nuestra concesión. Antes dependíamos de reportes tardíos; ahora podemos visualizar en tiempo casi real los puntos de calor y organizar brigadas comunitarias con mayor rapidez. Esto fortalece la protección del bosque y reduce pérdidas ambientales y económicas.”
+                    <div class="bmeta">— Ángel Rodas, AFISAP-</div>
+                  </div>
+                  <div class="bquote">
+                    “La integración de datos satelitales provenientes de FIRMS dentro del Geoportal permite un análisis espacial eficiente y operativo. La visualización geográfica, combinada con filtros temporales y análisis territorial, facilita la toma de decisiones estratégicas en la Reserva de la Biósfera Maya. Es un ejemplo de cómo la tecnología geoespacial puede apoyar directamente la gobernanza ambiental.”
+                    <div class="bmeta">— Inga. Claudia Saput, PACUNAM-</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="bslide">
+                <div class="bgrid">
+                  <div class="bquote">
+                    “El acceso abierto y visual al comportamiento de los puntos de calor nos da mayor autonomía para monitorear nuestro territorio. No solo sirve para reaccionar ante incendios, sino también para documentar amenazas externas y respaldar nuestros informes ante las autoridades ambientales. Es una herramienta que fortalece la gestión comunitaria del bosque.”
+                    <div class="bmeta">— Comunitario, UAXACTUN-</div>
+                  </div>
+                  <div class="bquote">
+                    “El Geoportal representa un avance significativo en el monitoreo ambiental regional. Al centralizar información satelital en una plataforma accesible y dinámica, mejora la coordinación interinstitucional y permite priorizar áreas críticas. Su aporte es estratégico para la conservación de la Reserva de la Biósfera Maya y la reducción de la deforestación asociada a incendios.”
+                    <div class="bmeta">— Gerente, Carmelita-</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="bdots" id="bdots">
+              <div class="bdot active" data-index="0"></div>
+              <div class="bdot" data-index="1"></div>
+            </div>
+          </div>
+
+          <div class="below-foot">
+            <div>© <span id="yearNow"></span> · Patrimonio Cultural y Natural Maya</div>
+            <div class="below-links">
+              <a href="#header">Principal</a>
+              <a href="#map">Mapa</a>
+              <a href="https://www.earthdata.nasa.gov/learn/find-data/near-real-time/firms" target="_blank">FIRMS</a>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
+
+    <!-- RIGHT -->
+    <aside id="controls">
+      <div id="controls-scroll">
+
+        <!-- SUMMARY -->
+        <div id="summary" class="panel">
+          <div style="display:flex; justify-content:space-between; align-items:flex-end; gap:10px;">
+            <div>
+              <div class="muted2" style="font-weight:900; font-size:12px;">Cantidad de puntos de calor</div>
+              <div class="big"><span id="total-points">0</span></div>
+            </div>
+          </div>
+
+          <div class="kpi">
+            <div class="row">
+              <div>🌲 Dentro de <b>Concesiones</b></div>
+              <div style="font-weight:900;"><span id="count-concessions">0</span></div>
+            </div>
+            <div class="row">
+              <div>🌿 Dentro de <b>RBM</b></div>
+              <div style="font-weight:900;"><span id="count-rbm">0</span></div>
+            </div>
+            <div class="row">
+              <div>🇬🇹 En <b>Guatemala</b></div>
+              <div style="font-weight:900;"><span id="count-gt">0</span></div>
+            </div>
+          </div>
+
+          <div class="note">
+            Nota: Concesiones con puntos de calor se resaltan en <b>rojo</b>.
+          </div>
+        </div>
+
+        <!-- LAST 10 -->
+        <div id="last10-panel" class="panel">
+          <div class="head">
+            <h4 style="margin:1;">⚠️ Últimos 10 puntos detectados</h4>
+            <button id="btnRefresh" class="btnRefresh">Actualizar</button>
+          </div>
+          <div class="muted">Puntos de calor dentro de concesión resaltan en rojo.</div>
+          <div id="listaLast10"></div>
+        </div>
+
+        <!-- CHART -->
+        <div id="chart-container" class="panel">
+          <canvas id="chart"></canvas>
+        </div>
+
+        <!-- FILTERS -->
+        <div id="filters" class="panel">
+          <div class="row">
+            <label for="clusterCheckbox">Agrupar puntos de calor (Cluster)</label>
+            <input type="checkbox" id="clusterCheckbox" checked />
+          </div>
+
+          <h3 style="margin:0 0 8px 0;">Filtrar Rápido</h3>
+
+          <button class="btn" id="todayButton">Últimas 24 Horas</button>
+          <button class="btn" id="last48HoursButton">Últimas 48 Horas</button>
+          <button class="btn" id="last72HoursButton">Últimas 72 Horas</button>
+          <button class="btn" id="last8DaysButton">Últimos 8 Días</button>
+
+          <button class="btn" id="resetRangeButton" style="display:none;">🔙 Volver al rango</button>
+        </div>
+
+        <!-- CONCESION PANEL -->
+        <div id="concesion-panel" class="panel">
+          <h3>🟡 Gráfico de puntos de calor por Concesión</h3>
+
+          <div class="chartbox">
+            <canvas id="chartConcesiones"></canvas>
+          </div>
+
+          <button id="btnXLSConcesiones" class="btnXLS">📥 Descargar Excel (Concesiones)</button>
+          <button id="btnXLSRBM" class="btnXLS">📥 Descargar Excel (RBM)</button>
+          <button id="btnXLSGT" class="btnXLS">📥 Descargar Excel (Guatemala)</button>
+
+          <div id="totalVisibleBox">Total dentro de Concesiones: <span id="totalVisible">0</span></div>
+          <div id="listaConcesiones"></div>
+        </div>
+
+      </div>
+    </aside>
   </div>
 
   <!-- Libs -->
@@ -417,8 +1033,9 @@
       arr.forEach(x => last10Keys.add(getFeatureKey(x.f)));
     }
 
-    //var FIRE_GIF_URL = "https://images.emojiterra.com/google/noto-emoji/animated-emoji/1f525.gif";
-	var FIRE_GIF_URL = "https://images.emojiterra.com/google/noto-emoji/animated-emoji/26a0.gif";
+    // 🔥 Puedes cambiar a llama si quieres:
+    // var FIRE_GIF_URL = "https://images.emojiterra.com/google/noto-emoji/animated-emoji/1f525.gif";
+    var FIRE_GIF_URL = "https://images.emojiterra.com/google/noto-emoji/animated-emoji/26a0.gif";
 
     function makeFireDivIcon(size){
       size = size || 56;
@@ -1000,7 +1617,7 @@
     document.getElementById("btnXLSGT").addEventListener("click", function(){ downloadXLSX("gt"); });
 
     /* =========================
-       MAPA: dibujar puntos
+       MAPA: dibujar puntos (cluster fixed)
     ========================== */
     function updateMap(data, useCluster) {
       mapData = data;
@@ -1010,6 +1627,7 @@
       if (markersToday) map.removeLayer(markersToday);
       if (markersOthers) map.removeLayer(markersOthers);
 
+      // grupos
       if (useCluster) {
         markersToday = L.markerClusterGroup();
         markersOthers = L.markerClusterGroup();
@@ -1020,15 +1638,8 @@
 
       var today = new Date().toISOString().split('T')[0];
 
-      var todayData = {
-        type: "FeatureCollection",
-        features: (data.features || []).filter(f => new Date(f.properties.acq_time).toISOString().split('T')[0] === today)
-      };
-
-      var otherData = {
-        type: "FeatureCollection",
-        features: (data.features || []).filter(f => new Date(f.properties.acq_time).toISOString().split('T')[0] !== today)
-      };
+      var todayFeatures = (data.features || []).filter(f => new Date(f.properties.acq_time).toISOString().split('T')[0] === today);
+      var otherFeatures = (data.features || []).filter(f => new Date(f.properties.acq_time).toISOString().split('T')[0] !== today);
 
       function pointLayer(feature, latlng){
         var key = getFeatureKey(feature);
@@ -1062,8 +1673,20 @@
         layer.bindPopup(popupContent);
       }
 
-      L.geoJSON(todayData, { pointToLayer: pointLayer, onEachFeature: bindPopup }).addTo(markersToday);
-      L.geoJSON(otherData, { pointToLayer: pointLayer, onEachFeature: bindPopup }).addTo(markersOthers);
+      // ✅ Para que Cluster funcione SIEMPRE:
+      // creamos geojson layer, luego metemos cada capa al cluster/group
+      function addFeaturesToGroup(features, group){
+        var gj = L.geoJSON({type:"FeatureCollection", features:features}, {
+          pointToLayer: pointLayer,
+          onEachFeature: bindPopup
+        });
+        gj.eachLayer(function(layer){
+          group.addLayer(layer);
+        });
+      }
+
+      addFeaturesToGroup(todayFeatures, markersToday);
+      addFeaturesToGroup(otherFeatures, markersOthers);
 
       map.addLayer(markersToday);
       map.addLayer(markersOthers);
@@ -1072,9 +1695,6 @@
       updateSpatialCounters(data);
       actualizarGraficoConcesiones(data);
       renderLast10List(data);
-
-      // refrescar headings porque el control se crea una vez
-      setTimeout(beautifyHeadings, 50);
     }
 
     /* =========================
@@ -1123,7 +1743,7 @@
           return 'rgba(56, 178, 172, 0.55)';
         },
         hoverBackgroundColor: 'rgba(56, 178, 172, 0.9)'
-      } ]},
+      }]},
       options: {
         responsive: true,
         maintainAspectRatio: false,
@@ -1210,7 +1830,6 @@
 
     /* =========================
        ⭐ CONTROL DE CAPAS CON ENCABEZADOS
-       (y sin checkbox en títulos)
     ========================== */
     function HeadingLayer(){ return L.layerGroup(); }
 
@@ -1218,7 +1837,6 @@
       '<span class="lc-heading">🧭 <big>Límites y Gestión</big></span>': HeadingLayer(),
       '<big> 🌲 Concesiones Forestales</big>': concesionesLayer,
       '<big> 🌿 Límite RBM</big>': rbmLayer,
-      //'<span class="lc-heading">⚠️ <big>Monitoreo de Incendios</big></span>': HeadingLayer()
     };
 
     const controlCapas = L.control.layers(
@@ -1236,7 +1854,7 @@
         }
       });
     }
-    setTimeout(beautifyHeadings, 100);
+    setTimeout(beautifyHeadings, 120);
 
     /* ✅ Escala */
     L.control.scale({ imperial:false, position:'bottomleft' }).addTo(map);
@@ -1290,6 +1908,26 @@
     document.getElementById('btnRefresh').addEventListener('click', function(){
       applyRange(currentRangeHours, true);
     });
+
+    /* =========================
+       Slider Opinión (sin librerías)
+    ========================== */
+    document.getElementById("yearNow").textContent = new Date().getFullYear();
+    (function(){
+      const slides = document.getElementById("bslides");
+      const dots = Array.from(document.querySelectorAll("#bdots .bdot"));
+      let idx = 0;
+
+      function go(i){
+        idx = (i + dots.length) % dots.length;
+        slides.style.transform = `translateX(${-idx*50}%)`;
+        dots.forEach(d=>d.classList.remove("active"));
+        dots[idx].classList.add("active");
+      }
+
+      dots.forEach(d => d.addEventListener("click", () => go(Number(d.dataset.index))));
+      go(0);
+    })();
 
     /* =========================
        INIT
