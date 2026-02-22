@@ -81,6 +81,21 @@
       margin: 0 auto;
     }
 
+.header-top{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:14px;
+  flex-wrap:wrap;
+}
+
+.header-logo{
+  height:44px;
+  width:auto;
+  max-width:160px;
+  object-fit:contain;
+  filter: drop-shadow(0 8px 14px rgba(0,0,0,.35));
+}
     /* LEFT COLUMN */
     #left-col{
       width:90%;
@@ -601,13 +616,27 @@
 </head>
 
 <body>
-  <div id="header">
-    <h1>"Geoportal para el monitoreo de puntos de calor en la Reserva de la Biósfera Maya"</h1>
-    <h2>Proyecto desarrollado por: PACUNAM</h2>
-    <p>Fuente:
-      <a href="https://www.earthdata.nasa.gov/learn/find-data/near-real-time/firms" target="_blank">FIRMS</a>
-    </p>
+<div id="header">
+  <div class="header-top">
+    <h1>Geoportal para el monitoreo de puntos de calor en la Reserva de la Biósfera Maya</h1>
+
+    <img
+      class="header-logo"
+      src="https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEh2OfEpHB7DOLTi_Iv5YBqRtrzEUf_DkHGh2rPCMQaRetWO_89Na8hbMZTIYFl_3miEZjql9zlZ7qys56TXRz1o2yRKWcBf9bunn7mlYCsyCR1rCeDR7vovZzU3h3Qn6JpUS6VsKqL3mbqwEieBQudJhGHYi_uV62w9Ficf1tys6yYSqUnpf84xXxlApo0B/s16000/Paculogo_GR_XL.png"
+      alt="PACUNAM"
+      loading="lazy"
+      decoding="async"
+      referrerpolicy="no-referrer"
+    />
   </div>
+
+  <h2>Proyecto desarrollado por: PACUNAM</h2>
+  <p>
+    Fuente:
+    <a href="https://www.earthdata.nasa.gov/learn/find-data/near-real-time/firms" target="_blank"
+       style="color:white;text-decoration:underline;">FIRMS</a>
+  </p>
+</div>
 
   <div id="map-container">
     <!-- LEFT -->
