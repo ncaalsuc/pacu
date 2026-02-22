@@ -33,18 +33,17 @@
     #chart { width:100% !important; height:100% !important; }
 
     #filters h3 { margin:0; }
-    #filters button, .btnXLS, .btnRefresh {
+    #filters button {
       width:100%;
       margin:5px 0;
       padding:10px;
       background-color:#38B2AC;
       color:white;
       border:none;
-      border-radius:8px;
+      border-radius:5px;
       cursor:pointer;
-      font-weight:bold;
     }
-    #filters button:hover, .btnXLS:hover, .btnRefresh:hover { background-color:#319795; }
+    #filters button:hover { background-color:#319795; }
 
     #resetRangeButton {
       background-color:#CBD5E0;
@@ -57,6 +56,19 @@
     .area-tooltip { background:rgba(0,0,0,0.5); border:none; color:#f8d5e4; }
 
     #concesion-panel h3, #last10-panel h3 { margin:0 0 10px 0; }
+
+    .btnXLS {
+      width:100%;
+      margin-top:10px;
+      padding:10px;
+      background-color:#38B2AC;
+      color:white;
+      border:none;
+      border-radius:8px;
+      cursor:pointer;
+      font-weight:bold;
+    }
+    .btnXLS:hover{ background-color:#319795; }
 
     #totalVisibleBox{
       margin-top:12px;
@@ -123,23 +135,42 @@
       color:rgba(255,255,255,0.85);
     }
 
-    /* ✅ RESPONSIVE PARA CELULAR */
-    @media (max-width: 900px){
-      #map-container{
-        flex-direction: column;
-        flex-wrap: wrap;
-      }
-      #map{
-        width: 100%;
-        height: 55vh;
-        min-height: 320px;
-      }
-      #controls{
-        width: 100%;
-        max-height: none;
-        height: 45vh;
-        overflow-y: auto;
-      }
+    /* ✅ ALERTA visual en lista de últimos 10 cuando cae dentro de concesión */
+    .cardAlert {
+      border: 2px solid rgba(255, 60, 60, 0.95) !important;
+      background: rgba(255, 60, 60, 0.12) !important;
+      box-shadow: 0 0 0 2px rgba(255,60,60,0.25), 0 0 22px rgba(255,60,60,0.45) !important;
+      animation: pulseRed 0.9s ease-in-out infinite;
+    }
+    .badgeCon {
+      display:inline-block;
+      padding:2px 8px;
+      border-radius:999px;
+      font-size:12px;
+      font-weight:bold;
+      background: rgba(255,60,60,0.9);
+      color: #fff;
+      margin-left:6px;
+      animation: blinkBadge 0.9s ease-in-out infinite;
+    }
+    @keyframes pulseRed{
+      0%   { transform: scale(1);   filter: brightness(1); }
+      50%  { transform: scale(1.01); filter: brightness(1.25); }
+      100% { transform: scale(1);   filter: brightness(1); }
+    }
+    @keyframes blinkBadge{
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.25; }
+    }
+
+    /* ✅ Animación en el icono de fuego SOLO si cae dentro de concesión */
+    @keyframes firePulseRing {
+      0%   { box-shadow: 0 0 0 3px rgba(255, 80, 80, 0.55), 0 0 28px rgba(255, 80, 80, 0.85), 0 0 55px rgba(255, 180, 0, 0.70); transform: scale(1); }
+      50%  { box-shadow: 0 0 0 6px rgba(255, 80, 80, 0.35), 0 0 34px rgba(255, 80, 80, 0.95), 0 0 70px rgba(255, 180, 0, 0.85); transform: scale(1.04); }
+      100% { box-shadow: 0 0 0 3px rgba(255, 80, 80, 0.55), 0 0 28px rgba(255, 80, 80, 0.85), 0 0 55px rgba(255, 180, 0, 0.70); transform: scale(1); }
+    }
+    .fire-alert-ring{
+      animation: firePulseRing 0.95s ease-in-out infinite;
     }
   </style>
 </head>
@@ -186,15 +217,12 @@
             Nota: Concesiones con puntos de calor se resaltan en <b style="color:#ff4d4d;">rojo</b>.
           </div>
         </div>
-
-        <!-- ✅ Botón refrescar -->
-        <button id="btnRefresh" class="btnRefresh" style="margin-top:10px;">🔄 Actualizar datos</button>
       </div>
 
-      <!-- ✅ Últimos 10 (fuego animado) -->
+      <!-- ✅ ÚLTIMOS 10 -->
       <div id="last10-panel">
         <h3>🔥 Últimos 10 detectados (más recientes)</h3>
-        <div class="muted">Tip: toca un elemento para volar al punto.</div>
+        <div class="muted">Si cae dentro de concesión, se muestra en rojo/intermitente.</div>
         <div id="listaLast10"></div>
       </div>
 
@@ -248,21 +276,6 @@
 
   <script>
     /* =========================
-       Helpers “mobile-safe”
-    ========================== */
-    function getCoords(feature){
-      if (!feature || !feature.geometry || !feature.geometry.coordinates) return null;
-      return feature.geometry.coordinates;
-    }
-    function getProp(p, k){
-      return (p && p[k] !== undefined && p[k] !== null) ? p[k] : null;
-    }
-    function safeNum(v){
-      var n = Number(v);
-      return isNaN(n) ? null : n;
-    }
-
-    /* =========================
        Overlay carga
     ========================== */
     var loadingOverlay = document.getElementById("loadingOverlay");
@@ -282,6 +295,37 @@
     function hideLoading(){ loadingOverlay.style.display = "none"; }
 
     /* =========================
+       Tooltip área (Draw)
+    ========================== */
+    function createAreaTooltip(layer) {
+      if (layer.areaTooltip) return;
+
+      layer.areaTooltip = L.tooltip({
+        permanent: true,
+        direction: 'center',
+        className: 'area-tooltip'
+      });
+
+      layer.on('remove', function() { layer.areaTooltip.remove(); });
+      layer.on('add', function() {
+        updateAreaTooltip(layer);
+        layer.areaTooltip.addTo(map);
+      });
+
+      if (map.hasLayer(layer)) {
+        updateAreaTooltip(layer);
+        layer.areaTooltip.addTo(map);
+      }
+    }
+
+    function updateAreaTooltip(layer) {
+      var area = L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]);
+      var readableArea = L.GeometryUtil.readableArea(area, true);
+      var latlng = layer.getCenter();
+      layer.areaTooltip.setContent(readableArea).setLatLng(latlng);
+    }
+
+    /* =========================
        MAPA
     ========================== */
     var map = L.map('map', {
@@ -291,13 +335,13 @@
       minZoom: 6
     }).setView([16.939224, -90.231038], 8.50);
 
-    var osm = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
-      attribution: '&copy; Google Hybrid'
-    }).addTo(map);
-
     var ggl = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap'
     });
+
+    var osm = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+      attribution: '&copy; Google Hybrid'
+    }).addTo(map);
 
     var gglmps = L.tileLayer('https://mt1.google.com/vt/lyrs=r&x={x}&y={y}&z={z}', {
       attribution: '&copy; Google Maps'
@@ -319,8 +363,17 @@
     }
     function formatCoordinate(coordinate) { return Number(coordinate).toFixed(4); }
 
+    function getCoords(feature){
+      if (!feature) return null;
+      var p = feature.properties || {};
+      var lon = (p.longitude != null) ? Number(p.longitude) : (feature.geometry && feature.geometry.coordinates ? Number(feature.geometry.coordinates[0]) : null);
+      var lat = (p.latitude  != null) ? Number(p.latitude)  : (feature.geometry && feature.geometry.coordinates ? Number(feature.geometry.coordinates[1]) : null);
+      if (lon == null || lat == null || isNaN(lon) || isNaN(lat)) return null;
+      return [lon, lat];
+    }
+
     /* =========================
-       ✅ TOP 10 más recientes
+       ✅ TOP 10 más recientes = fuego activo
     ========================== */
     var last10Keys = new Set();
 
@@ -331,8 +384,8 @@
       if (p.ObjectId != null) return "oid_" + p.ObjectId;
 
       var coords = getCoords(f);
-      var lon = (p.longitude != null) ? p.longitude : (coords ? coords[0] : null);
-      var lat = (p.latitude  != null) ? p.latitude  : (coords ? coords[1] : null);
+      var lon = coords ? coords[0] : "";
+      var lat = coords ? coords[1] : "";
       return "k_" + String(p.acq_time || "") + "_" + String(lat || "") + "_" + String(lon || "");
     }
 
@@ -340,35 +393,53 @@
       last10Keys = new Set();
       if (!data || !data.features || !data.features.length) return;
 
-      var arr = [];
-      for (var i=0;i<data.features.length;i++){
-        var f = data.features[i];
-        var t = 0;
-        try { t = new Date((f.properties || {}).acq_time).getTime(); } catch(e){}
-        if (t > 0) arr.push({ f: f, t: t });
-      }
+      var arr = data.features
+        .map(f => {
+          var t = 0;
+          try { t = new Date((f.properties || {}).acq_time).getTime(); } catch(e){}
+          if (!t) {
+            var tt = parseTimeMsFromFeature(f);
+            if (!isNaN(tt)) t = tt;
+          }
+          return { f: f, t: t };
+        })
+        .filter(x => x.t > 0)
+        .sort((a,b) => b.t - a.t)
+        .slice(0, 10);
 
-      arr.sort(function(a,b){ return b.t - a.t; });
-      arr = arr.slice(0, 10);
-
-      for (var j=0;j<arr.length;j++){
-        last10Keys.add(getFeatureKey(arr[j].f));
-      }
+      arr.forEach(x => last10Keys.add(getFeatureKey(x.f)));
     }
 
     var FIRE_GIF_URL = "https://images.emojiterra.com/google/noto-emoji/animated-emoji/1f525.gif";
 
-    function makeFireDivIcon(size){
+    // ✅ ahora recibe flag alert para animar SOLO si cae en concesión
+    function makeFireDivIcon(size, isAlert){
       size = size || 56;
+      var ringClass = isAlert ? "fire-alert-ring" : "";
       return L.divIcon({
         className: "",
         iconSize: [size, size],
         iconAnchor: [size/2, size/2],
-        html:
-          '<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.25);' +
-          'box-shadow:0 0 0 3px rgba(255,80,80,0.55),0 0 28px rgba(255,80,80,0.85),0 0 55px rgba(255,180,0,0.70);border:1px solid rgba(255,255,255,0.25);">' +
-          '<img src="'+FIRE_GIF_URL+'" style="width:'+Math.round(size*0.78)+'px;height:'+Math.round(size*0.78)+'px;object-fit:contain;filter:drop-shadow(0 6px 10px rgba(0,0,0,0.45));" />' +
-          '</div>'
+        html: `
+          <div class="${ringClass}" style="
+            width:${size}px; height:${size}px;
+            border-radius: 50%;
+            display:flex; align-items:center; justify-content:center;
+            background: rgba(0,0,0,0.25);
+            box-shadow:
+              0 0 0 3px rgba(255, 80, 80, 0.55),
+              0 0 28px rgba(255, 80, 80, 0.85),
+              0 0 55px rgba(255, 180, 0, 0.70);
+            border: 1px solid rgba(255,255,255,0.25);
+          ">
+            <img src="${FIRE_GIF_URL}" style="
+              width:${Math.round(size*0.78)}px;
+              height:${Math.round(size*0.78)}px;
+              object-fit:contain;
+              filter: drop-shadow(0 6px 10px rgba(0,0,0,0.45));
+            " />
+          </div>
+        `
       });
     }
 
@@ -381,13 +452,12 @@
     var OID_FIELD = "OBJECTID";
     var MAX_RECORDS = 1000;
     var _metaReady = false;
-    var _nocache = 0; // para forzar recarga
 
     async function initLayerInfo(){
       if (_metaReady) return;
       try{
-        var r = await fetch(LAYER_INFO_URL + "&_=" + Date.now());
-        var info = await r.json();
+        const r = await fetch(LAYER_INFO_URL);
+        const info = await r.json();
         if (info && info.objectIdField) OID_FIELD = info.objectIdField;
         if (info && info.maxRecordCount) MAX_RECORDS = info.maxRecordCount;
         _metaReady = true;
@@ -398,17 +468,17 @@
     }
 
     async function fetchText(url){
-      var r = await fetch(url);
+      const r = await fetch(url);
       return await r.text();
     }
 
     function arcgisPjsonToGeoJSON(pjson){
-      var fc = { type:"FeatureCollection", features:[] };
-      var feats = (pjson && pjson.features) ? pjson.features : [];
-      for (var i=0;i<feats.length;i++){
-        var f = feats[i];
-        var attrs = f.attributes || {};
-        var g = f.geometry || {};
+      const fc = { type:"FeatureCollection", features:[] };
+      const feats = (pjson && pjson.features) ? pjson.features : [];
+      for (let i=0;i<feats.length;i++){
+        const f = feats[i];
+        const attrs = f.attributes || {};
+        const g = f.geometry || {};
         if (g.x === undefined || g.y === undefined) continue;
         fc.features.push({
           type:"Feature",
@@ -420,21 +490,19 @@
     }
 
     async function fetchArcGISAsGeoJSON(url){
-      var txt = await fetchText(url);
+      const txt = await fetchText(url);
 
-      if (txt && txt.trim().charAt(0) === "<"){
-        throw new Error("El servidor devolvió HTML (servicio caído o error interno).");
+      if (txt && txt.trim().startsWith("<")){
+        throw new Error("El servidor devolvió HTML (Servidor caído o error interno).");
       }
 
-      var json = null;
+      let json;
       try{ json = JSON.parse(txt); }
       catch(e){ throw new Error("Respuesta inválida del servidor (no JSON)."); }
 
       if (json && json.error){
-        var msg = (json.error.message || "Error ArcGIS");
-        if (json.error.details && json.error.details.length){
-          msg += " | " + json.error.details.join(" | ");
-        }
+        const msg = (json.error.message || "Error ArcGIS")
+          + (json.error.details ? (" | " + json.error.details.join(" | ")) : "");
         throw new Error(msg);
       }
 
@@ -442,16 +510,16 @@
     }
 
     function parseTimeMsFromFeature(f){
-      var p = f.properties || {};
-      var v = p.acq_time;
+      const p = f.properties || {};
+      let v = p.acq_time;
 
       if (typeof v === "number") return v;
 
       if (typeof v === "string"){
-        var t = new Date(v).getTime();
+        const t = new Date(v).getTime();
         if (!isNaN(t)) return t;
 
-        var asNum = Number(v);
+        const asNum = Number(v);
         if (!isNaN(asNum) && asNum > 1000000000) return asNum;
       }
 
@@ -461,44 +529,42 @@
     async function fetchRangeFromServer(hours){
       await initLayerInfo();
 
-      var now = new Date();
-      var past = new Date(now.getTime() - hours*60*60*1000);
+      const now = new Date();
+      const past = new Date(now.getTime() - hours*60*60*1000);
 
-      var outFields = [
+      const outFields = [
         OID_FIELD, "latitude","longitude","bright_ti4",
         "acq_time","satellite","depto","municipio","concat_2","gtm_x","gtm_y"
       ].join(",");
 
-      var limit = Math.min(2000, MAX_RECORDS || 1000);
-      var offset = 0;
-      var page = 0;
-      var all = { type:"FeatureCollection", features:[] };
+      const limit = Math.min(2000, MAX_RECORDS || 1000);
+      let offset = 0;
+      let page = 0;
+      let all = { type:"FeatureCollection", features:[] };
 
       while(true){
         page++;
-        setLoadingProgress(Math.min(90, page*20), "Descargando recientes… página " + page);
+        setLoadingProgress(Math.min(90, page*20), `Descargando recientes… página ${page}`);
 
-        var url =
-          FEATURE_URL + "?where=1%3D1" +
-          "&outFields=" + encodeURIComponent(outFields) +
-          "&outSR=4326&f=pjson" +
-          "&orderByFields=" + encodeURIComponent(OID_FIELD + " DESC") +
-          "&resultOffset=" + offset + "&resultRecordCount=" + limit +
-          "&_=" + (Date.now() + _nocache);
+        const url =
+          `${FEATURE_URL}?where=1%3D1`
+          + `&outFields=${encodeURIComponent(outFields)}`
+          + `&outSR=4326&f=pjson`
+          + `&orderByFields=${encodeURIComponent(OID_FIELD + " DESC")}`
+          + `&resultOffset=${offset}&resultRecordCount=${limit}`;
 
-        var gj = await fetchArcGISAsGeoJSON(url);
+        const gj = await fetchArcGISAsGeoJSON(url);
 
         if (gj.features && gj.features.length){
-          for (var k=0;k<gj.features.length;k++){
-            var ft = gj.features[k];
-            var tms = parseTimeMsFromFeature(ft);
-            if (!isNaN(tms) && tms >= past.getTime() && tms <= now.getTime()){
+          for (const ft of gj.features){
+            const t = parseTimeMsFromFeature(ft);
+            if (!isNaN(t) && t >= past.getTime() && t <= now.getTime()){
               all.features.push(ft);
             }
           }
 
-          var last = gj.features[gj.features.length - 1];
-          var lastT = parseTimeMsFromFeature(last);
+          const last = gj.features[gj.features.length - 1];
+          const lastT = parseTimeMsFromFeature(last);
           if (!isNaN(lastT) && lastT < past.getTime()){
             break;
           }
@@ -507,7 +573,7 @@
         if (!gj.features || gj.features.length < limit) break;
 
         offset += limit;
-        if (page > 15) break;
+        if (page > 15) break; // seguridad
       }
 
       return all;
@@ -524,7 +590,7 @@
     var markersOthers = null;
 
     /* =========================
-       RBM / Concesiones / GT
+       CONTEO ESPACIAL (Concesiones / RBM / Guatemala)
     ========================== */
     var concesionesFeatures = [];
     var concesionesIndex = [];
@@ -536,7 +602,7 @@
     var GT_GEOJSON_URL = "https://raw.githubusercontent.com/johan/world.geo.json/master/countries/GTM.geo.json";
 
     function buildBBoxIndex(features) {
-      return (features || []).map(function(f){ return { feature: f, bbox: turf.bbox(f) }; });
+      return (features || []).map(f => ({ feature: f, bbox: turf.bbox(f) }));
     }
     function bboxContainsPoint(bbox, lon, lat) {
       return lon >= bbox[0] && lon <= bbox[2] && lat >= bbox[1] && lat <= bbox[3];
@@ -548,7 +614,7 @@
     }
 
     function getConcessionName(feature){
-      var p = (feature && feature.properties) ? feature.properties : {};
+      var p = feature && feature.properties ? feature.properties : {};
       return p.ZON_NOM || p.NOMBRE || p.Nombre || p.NAME || p.name || p.CONCESION || p.Concesion || p.concesion || "Concesión";
     }
 
@@ -646,6 +712,69 @@
     }
 
     /* =========================
+       ✅ Últimos 10: lista (rojo/intermitente si en concesión)
+    ========================== */
+    function renderLast10List(data){
+      var div = document.getElementById("listaLast10");
+      div.innerHTML = "";
+
+      if (!data || !data.features || !data.features.length){
+        div.innerHTML = '<div class="cardPoint">Sin datos en el rango actual.</div>';
+        return;
+      }
+
+      var arr = [];
+      for (var i=0;i<data.features.length;i++){
+        var f = data.features[i];
+        var t = parseTimeMsFromFeature(f);
+        if (!isNaN(t)) arr.push({ f:f, t:t });
+      }
+      arr.sort(function(a,b){ return b.t - a.t; });
+      arr = arr.slice(0,10);
+
+      for (var j=0;j<arr.length;j++){
+        (function(item){
+          var f = item.f;
+          var p = f.properties || {};
+          var coords = getCoords(f);
+          if (!coords) return;
+
+          var lon = coords[0];
+          var lat = coords[1];
+
+          var key = getFeatureKey(f);
+          var cached = spatialCache.get(key);
+          var concesion = cached ? cached.concesionName : (concesionesIndex.length ? getConcessionNameFromPoint(lon, lat) : null);
+          var isInConcession = !!concesion;
+
+          var depto = (p.depto != null) ? p.depto : "N/D";
+          var muni  = (p.municipio != null) ? p.municipio : "N/D";
+
+          var card = document.createElement("div");
+          card.className = "cardPoint" + (isInConcession ? " cardAlert" : "");
+
+          card.innerHTML =
+            "🔥 <b>Fecha:</b> " + formatAcqTime(p.acq_time) +
+            (isInConcession ? ' <span class="badgeCon">EN CONCESIÓN</span>' : "") +
+            "<br>" +
+            "<b>Depto/Muni:</b> " + depto + " / " + muni + "<br>" +
+            "<b>Concesión:</b> " + (isInConcession ? concesion : "Fuera") + "<br>" +
+            "<b>Lat:</b> " + Number(lat).toFixed(5) + " &nbsp; <b>Lon:</b> " + Number(lon).toFixed(5);
+
+          card.addEventListener("click", function(){
+            map.flyTo([lat, lon], 14);
+          });
+
+          div.appendChild(card);
+        })(arr[j]);
+      }
+
+      if (!div.children.length){
+        div.innerHTML = '<div class="cardPoint">No se pudieron renderizar los últimos 10.</div>';
+      }
+    }
+
+    /* =========================
        Panel concesión
     ========================== */
     var chartConcesiones = null;
@@ -657,10 +786,9 @@
       var totalDentroConcesiones = 0;
       var listItems = [];
 
-      for (var i=0;i<data.features.length;i++){
-        var f = data.features[i];
+      data.features.forEach(f => {
         var coords = getCoords(f);
-        if (!coords) continue;
+        if (!coords) return;
 
         var lon = coords[0];
         var lat = coords[1];
@@ -668,7 +796,7 @@
         var key = getFeatureKey(f);
         var cached = spatialCache.get(key);
         var nombre = cached ? cached.concesionName : getConcessionNameFromPoint(lon, lat);
-        if (!nombre) continue;
+        if (!nombre) return;
 
         conteo[nombre] = (conteo[nombre] || 0) + 1;
         totalDentroConcesiones++;
@@ -680,12 +808,12 @@
           lat: lat,
           lon: lon
         });
-      }
+      });
 
       updateConcessionStylesFromCounts(conteo);
 
-      var etiquetas = Object.keys(conteo).sort(function(a,b){ return (conteo[b]||0)-(conteo[a]||0); });
-      var valores = etiquetas.map(function(k){ return conteo[k]; });
+      var etiquetas = Object.keys(conteo).sort((a,b)=> (conteo[b]||0)-(conteo[a]||0));
+      var valores = etiquetas.map(k => conteo[k]);
 
       if (chartConcesiones) chartConcesiones.destroy();
       var ctx = document.getElementById("chartConcesiones").getContext("2d");
@@ -720,92 +848,32 @@
       var listaDiv = document.getElementById("listaConcesiones");
       listaDiv.innerHTML = "";
 
-      listItems.sort(function(a,b){ return b.fechaEpoch - a.fechaEpoch; });
+      listItems.sort((a,b)=> b.fechaEpoch - a.fechaEpoch);
 
       var maxItems = Math.min(50, listItems.length);
-      for (var j=0; j<maxItems; j++){
+      for (var i=0; i<maxItems; i++){
         (function(item){
           var card = document.createElement("div");
           card.className = "cardPoint";
-          card.innerHTML =
-            "🔥 <b>Concesión:</b> " + item.concesion + "<br>" +
-            "<b>Fecha y hora:</b> " + item.fecha + "<br>" +
-            "<b>Lat:</b> " + item.lat.toFixed(5) + " &nbsp; <b>Lon:</b> " + item.lon.toFixed(5);
-
+          card.innerHTML = `
+            🔥 <b>Concesión:</b> ${item.concesion}<br>
+            <b>Fecha y hora:</b> ${item.fecha}<br>
+            <b>Lat:</b> ${item.lat.toFixed(5)} &nbsp; <b>Lon:</b> ${item.lon.toFixed(5)}
+          `;
           card.addEventListener("click", function(){
             map.flyTo([item.lat, item.lon], 14);
           });
           listaDiv.appendChild(card);
-        })(listItems[j]);
+        })(listItems[i]);
       }
 
       if (listItems.length === 0){
-        listaDiv.innerHTML = '<div class="cardPoint">No hay puntos dentro de concesiones en el rango actual.</div>';
+        listaDiv.innerHTML = `<div class="cardPoint">No hay puntos dentro de concesiones en el rango actual.</div>`;
       }
     }
 
     /* =========================
-       ✅ Lista últimos 10
-    ========================== */
-    function renderLast10List(data){
-      var div = document.getElementById("listaLast10");
-      div.innerHTML = "";
-
-      if (!data || !data.features || !data.features.length){
-        div.innerHTML = '<div class="cardPoint">Sin datos en el rango actual.</div>';
-        return;
-      }
-
-      // construir array ordenado
-      var arr = [];
-      for (var i=0;i<data.features.length;i++){
-        var f = data.features[i];
-        var t = parseTimeMsFromFeature(f);
-        if (!isNaN(t)) arr.push({ f:f, t:t });
-      }
-      arr.sort(function(a,b){ return b.t - a.t; });
-      arr = arr.slice(0,10);
-
-      for (var j=0;j<arr.length;j++){
-        (function(item){
-          var f = item.f;
-          var p = f.properties || {};
-          var coords = getCoords(f);
-          if (!coords) return;
-
-          var lon = coords[0];
-          var lat = coords[1];
-
-          var key = getFeatureKey(f);
-          var cached = spatialCache.get(key);
-          var concesion = cached ? cached.concesionName : (concesionesIndex.length ? getConcessionNameFromPoint(lon, lat) : null);
-
-          var depto = (p.depto != null) ? p.depto : "N/D";
-          var muni  = (p.municipio != null) ? p.municipio : "N/D";
-
-          var card = document.createElement("div");
-          card.className = "cardPoint";
-          card.innerHTML =
-            "🔥 <b>Fecha:</b> " + formatAcqTime(p.acq_time) + "<br>" +
-            "<b>Depto/Muni:</b> " + depto + " / " + muni + "<br>" +
-            "<b>Concesión:</b> " + (concesion ? concesion : "Fuera") + "<br>" +
-            "<b>Lat:</b> " + Number(lat).toFixed(5) + " &nbsp; <b>Lon:</b> " + Number(lon).toFixed(5);
-
-          card.addEventListener("click", function(){
-            map.flyTo([lat, lon], 14);
-          });
-
-          div.appendChild(card);
-        })(arr[j]);
-      }
-
-      if (!div.children.length){
-        div.innerHTML = '<div class="cardPoint">No se pudieron renderizar los últimos 10.</div>';
-      }
-    }
-
-    /* =========================
-       Excel (igual que tu lógica)
+       Excel
     ========================== */
     function fmtDateForExcel(v){
       if (!v) return "";
@@ -815,18 +883,18 @@
     function featureToRow(f){
       var p = f.properties || {};
       var coords = getCoords(f);
-      var lat = (p.latitude != null) ? p.latitude : (coords ? coords[1] : "");
-      var lon = (p.longitude != null) ? p.longitude : (coords ? coords[0] : "");
+      var lon = coords ? coords[0] : "";
+      var lat = coords ? coords[1] : "";
 
       return {
         latitude:  (lat !== undefined ? Number(lat) : ""),
         longitude: (lon !== undefined ? Number(lon) : ""),
         acq_time:  fmtDateForExcel(p.acq_time),
-        satellite: (p.satellite != null ? p.satellite : ""),
-        Depto:     (p.depto != null ? p.depto : ""),
-        MUNICIPIO: (p.municipio != null ? p.municipio : ""),
-        gtm_x:     (p.gtm_x != null ? p.gtm_x : ""),
-        gtm_y:     (p.gtm_y != null ? p.gtm_y : "")
+        satellite: (p.satellite ?? ""),
+        Depto:     (p.depto ?? ""),
+        MUNICIPIO: (p.municipio ?? ""),
+        gtm_x:     (p.gtm_x ?? ""),
+        gtm_y:     (p.gtm_y ?? "")
       };
     }
 
@@ -835,26 +903,26 @@
       var feats = data.features;
 
       if (scope === "concesiones"){
-        return feats.filter(function(f){
+        return feats.filter(f => {
           var coords = getCoords(f);
           if (!coords) return false;
-          return pointInAnyConcession(Number(coords[0]), Number(coords[1]));
+          return pointInAnyConcession(coords[0], coords[1]);
         });
       }
 
       if (scope === "rbm"){
-        return feats.filter(function(f){
+        return feats.filter(f => {
           var coords = getCoords(f);
           if (!coords) return false;
-          return pointInAnyRBM(Number(coords[0]), Number(coords[1]));
+          return pointInAnyRBM(coords[0], coords[1]);
         });
       }
 
-      return feats.filter(function(f){
+      return feats.filter(f => {
         var coords = getCoords(f);
         if (!coords) return false;
         if (!gtFeature) return true;
-        return pointInFeature(Number(coords[0]), Number(coords[1]), gtFeature);
+        return pointInFeature(coords[0], coords[1], gtFeature);
       });
     }
 
@@ -903,7 +971,7 @@
       var hh = String(now.getHours()).padStart(2,"0");
       var mm = String(now.getMinutes()).padStart(2,"0");
 
-      var filename = "puntos_calor_" + sheetName + "_" + hours + "h_" + y + m + d + "_" + hh + mm + ".xlsx";
+      var filename = `puntos_calor_${sheetName}_${hours}h_${y}${m}${d}_${hh}${mm}.xlsx`;
       XLSX.writeFile(wb, filename);
     }
 
@@ -913,6 +981,8 @@
 
     /* =========================
        MAPA: dibujar puntos
+       ✅ Últimos 10 = fuego
+       ✅ Si el último 10 cae en concesión => también parpadea/pulsa
     ========================== */
     function updateMap(data, useCluster) {
       mapData = data;
@@ -922,26 +992,42 @@
       if (markersToday) map.removeLayer(markersToday);
       if (markersOthers) map.removeLayer(markersOthers);
 
-      markersToday  = useCluster ? L.markerClusterGroup() : L.layerGroup();
-      markersOthers = useCluster ? L.markerClusterGroup() : L.layerGroup();
+      if (useCluster) {
+        markersToday = L.markerClusterGroup();
+        markersOthers = L.markerClusterGroup();
+      } else {
+        markersToday = L.layerGroup();
+        markersOthers = L.layerGroup();
+      }
 
       var today = new Date().toISOString().split('T')[0];
 
-      var todayFeatures = [];
-      var otherFeatures = [];
+      var todayData = {
+        type: "FeatureCollection",
+        features: (data.features || []).filter(f => new Date((f.properties || {}).acq_time).toISOString().split('T')[0] === today)
+      };
 
-      for (var i=0;i<(data.features||[]).length;i++){
-        var f = data.features[i];
-        var p = f.properties || {};
-        var d = new Date(p.acq_time).toISOString().split('T')[0];
-        if (d === today) todayFeatures.push(f); else otherFeatures.push(f);
-      }
+      var otherData = {
+        type: "FeatureCollection",
+        features: (data.features || []).filter(f => new Date((f.properties || {}).acq_time).toISOString().split('T')[0] !== today)
+      };
 
       function pointLayer(feature, latlng){
         var key = getFeatureKey(feature);
 
         if (last10Keys.has(key)){
-          return L.marker(latlng, { icon: makeFireDivIcon(62), riseOnHover:true });
+          // ✅ Si está en concesión => icono con animación extra
+          var cached = spatialCache.get(key);
+          var isInCon = cached ? !!cached.concesionName : false;
+
+          // Si aún no hay cache (por orden de carga), lo calculamos rápido si ya hay índice
+          if (!cached && concesionesIndex.length){
+            var cName = getConcessionNameFromPoint(latlng.lng, latlng.lat);
+            isInCon = !!cName;
+            spatialCache.set(key, { gt:true, rbm:false, con:isInCon, concesionName:cName });
+          }
+
+          return L.marker(latlng, { icon: makeFireDivIcon(62, isInCon), riseOnHover:true });
         }
 
         var p = feature.properties || {};
@@ -957,25 +1043,21 @@
 
       function bindPopup(feature, layer){
         var p = feature.properties || {};
-        var coords = getCoords(feature) || [null,null];
-
-        var latv = (p.latitude != null) ? p.latitude : coords[1];
-        var lonv = (p.longitude != null) ? p.longitude : coords[0];
-
-        var popupContent =
-          "<strong>Hora de detección:</strong> " + formatAcqTime(p.acq_time) + "<br>" +
-          "<strong>Latitud:</strong> " + formatCoordinate(latv) + "<br>" +
-          "<strong>Longitud:</strong> " + formatCoordinate(lonv) + "<br>" +
-          "<strong>Categoría:</strong> " + (p.concat_2 ? p.concat_2 : "N/D") + "<br>" +
-          "<strong>Depto:</strong> " + (p.depto ? p.depto : "N/D") + "<br>" +
-          "<strong>Municipio:</strong> " + (p.municipio ? p.municipio : "N/D") + "<br>" +
-          "<strong>Satélite:</strong> " + (p.satellite ? p.satellite : "N/D");
-
+        var coords = getCoords(feature) || [feature.geometry.coordinates[0], feature.geometry.coordinates[1]];
+        var popupContent = `
+          <strong>Hora de detección:</strong> ${formatAcqTime(p.acq_time)}<br>
+          <strong>Latitud:</strong> ${formatCoordinate(p.latitude ?? coords[1])}<br>
+          <strong>Longitud:</strong> ${formatCoordinate(p.longitude ?? coords[0])}<br>
+          <strong>Categoría:</strong> ${p.concat_2 || 'N/D'}<br>
+          <strong>Depto:</strong> ${p.depto || 'N/D'}<br>
+          <strong>Municipio:</strong> ${p.municipio || 'N/D'}<br>
+          <strong>Satélite:</strong> ${p.satellite || 'N/D'}
+        `;
         layer.bindPopup(popupContent);
       }
 
-      L.geoJSON({ type:"FeatureCollection", features: todayFeatures }, { pointToLayer: pointLayer, onEachFeature: bindPopup }).addTo(markersToday);
-      L.geoJSON({ type:"FeatureCollection", features: otherFeatures }, { pointToLayer: pointLayer, onEachFeature: bindPopup }).addTo(markersOthers);
+      L.geoJSON(todayData, { pointToLayer: pointLayer, onEachFeature: bindPopup }).addTo(markersToday);
+      L.geoJSON(otherData, { pointToLayer: pointLayer, onEachFeature: bindPopup }).addTo(markersOthers);
 
       map.addLayer(markersToday);
       map.addLayer(markersOthers);
@@ -983,10 +1065,9 @@
       updateSummary((data.features || []).length);
       updateSpatialCounters(data);
       actualizarGraficoConcesiones(data);
-      renderLast10List(data);
 
-      // ✅ Arreglo móvil: recalcula tamaño después de pintar
-      setTimeout(function(){ map.invalidateSize(true); }, 250);
+      // ✅ render lista de últimos 10
+      renderLast10List(data);
     }
 
     /* =========================
@@ -995,24 +1076,22 @@
     function filterDataByDate(data, date) {
       return {
         type: "FeatureCollection",
-        features: (data.features || []).filter(function(feature){
-          var acqDate = new Date((feature.properties||{}).acq_time).toISOString().split('T')[0];
+        features: (data.features || []).filter(feature => {
+          var acqDate = new Date((feature.properties || {}).acq_time).toISOString().split('T')[0];
           return acqDate === date;
         })
       };
     }
 
     function updateChart(data) {
-      var dateCounts = {};
-      var feats = data.features || [];
+      var dateCounts = (data.features || []).reduce((acc, feature) => {
+        var date = new Date((feature.properties || {}).acq_time).toISOString().split('T')[0];
+        acc[date] = (acc[date] || 0) + 1;
+        return acc;
+      }, {});
 
-      for (var i=0;i<feats.length;i++){
-        var d = new Date((feats[i].properties||{}).acq_time).toISOString().split('T')[0];
-        dateCounts[d] = (dateCounts[d] || 0) + 1;
-      }
-
-      var sortedDates = Object.keys(dateCounts).sort(function(a,b){ return new Date(a) - new Date(b); });
-      var sortedCounts = sortedDates.map(function(d){ return dateCounts[d]; });
+      var sortedDates = Object.keys(dateCounts).sort((a,b) => new Date(a) - new Date(b));
+      var sortedCounts = sortedDates.map(d => dateCounts[d]);
 
       chart.data.labels = sortedDates;
       chart.data.datasets[0].data = sortedCounts;
@@ -1035,7 +1114,8 @@
           var i = ctx.dataIndex;
           if (selectedBarIndex !== null && i === selectedBarIndex) return 'rgba(56, 178, 172, 0.95)';
           return 'rgba(56, 178, 172, 0.55)';
-        }
+        },
+        hoverBackgroundColor: 'rgba(56, 178, 172, 0.9)'
       } ]},
       options: {
         responsive: true,
@@ -1069,7 +1149,7 @@
       selectedBarIndex = null;
       document.getElementById('resetRangeButton').style.display = 'none';
 
-      showLoading("Cargando puntos (" + hours + "h)…");
+      showLoading(`Cargando puntos (${hours}h)…`);
       document.getElementById('total-points').textContent = "…";
 
       try{
@@ -1095,29 +1175,32 @@
     /* =========================
        RBM + Concesiones
     ========================== */
-    var rbmLayer = L.geoJSON(null, { style: function(){ return { color:'blue', weight:1, fillOpacity:0 }; } });
+    var rbmLayer = L.geoJSON(null, { style: () => ({ color:'blue', weight:1, fillOpacity:0 }) });
     concesionesLayer = L.geoJSON(null, { style: concesionStyle });
 
-    fetch('https://raw.githubusercontent.com/nestorcaalsuc/RBM/main/RBM.geojson?_=' + Date.now())
-      .then(function(r){ return r.json(); }).then(function(d){
+    fetch('https://raw.githubusercontent.com/nestorcaalsuc/RBM/main/RBM.geojson')
+      .then(r => r.json()).then(d => {
         rbmLayer.addData(d);
         rbmFeatures = (d && d.features) ? d.features : [];
         rbmIndex = buildBBoxIndex(rbmFeatures);
       });
 
-    fetch('https://raw.githubusercontent.com/nestorcaalsuc/RBM/main/Concesiones.geojson?_=' + Date.now())
-      .then(function(r){ return r.json(); }).then(function(d){
+    fetch('https://raw.githubusercontent.com/nestorcaalsuc/RBM/main/Concesiones.geojson')
+      .then(r => r.json()).then(d => {
         concesionesLayer.addData(d);
         concesionesFeatures = (d && d.features) ? d.features : [];
         concesionesIndex = buildBBoxIndex(concesionesFeatures);
         updateConcessionStylesFromCounts({});
+        // refrescar contadores si ya había datos
+        if (mapData || rangeData){
+          updateSpatialCounters(mapData || rangeData);
+          renderLast10List(mapData || rangeData);
+        }
       });
 
-    fetch(GT_GEOJSON_URL + "?_=" + Date.now())
-      .then(function(r){ return r.json(); })
-      .then(function(d){
-        gtFeature = (d.type === "Feature") ? d : ((d.features && d.features[0]) ? d.features[0] : null);
-      });
+    fetch(GT_GEOJSON_URL)
+      .then(r => r.json())
+      .then(d => { gtFeature = (d.type === "Feature") ? d : (d.features && d.features[0]); });
 
     L.control.layers(null, {
       "Concesiones Forestales": concesionesLayer,
@@ -1128,15 +1211,33 @@
     rbmLayer.addTo(map);
 
     /* =========================
-       ✅ Fix render móvil
+       Draw control
     ========================== */
-    function fixMapSize(){
-      setTimeout(function(){
-        if (map) map.invalidateSize(true);
-      }, 350);
-    }
-    window.addEventListener("resize", fixMapSize);
-    window.addEventListener("orientationchange", fixMapSize);
+    var drawnItems = L.featureGroup().addTo(map);
+
+    map.addControl(new L.Control.Draw({
+      edit: { featureGroup: drawnItems, poly: { allowIntersection: false } },
+      draw: {
+        marker: true,
+        circle: true,
+        circlemarker: false,
+        rectangle: true,
+        polyline: true,
+        polygon: { allowIntersection: false, showArea: true }
+      }
+    }));
+
+    map.on(L.Draw.Event.CREATED, function(event) {
+      var layer = event.layer;
+      if (layer instanceof L.Polygon) createAreaTooltip(layer);
+      drawnItems.addLayer(layer);
+    });
+
+    map.on(L.Draw.Event.EDITED, function(event) {
+      event.layers.getLayers().forEach(function(layer) {
+        if (layer instanceof L.Polygon) updateAreaTooltip(layer);
+      });
+    });
 
     /* =========================
        INIT
@@ -1144,10 +1245,10 @@
     (async function init(){
       await applyRange(24);
 
-      document.getElementById('todayButton').addEventListener('click', function(){ applyRange(24); });
-      document.getElementById('last48HoursButton').addEventListener('click', function(){ applyRange(48); });
-      document.getElementById('last72HoursButton').addEventListener('click', function(){ applyRange(72); });
-      document.getElementById('last8DaysButton').addEventListener('click', function(){ applyRange(8 * 24); });
+      document.getElementById('todayButton').addEventListener('click', () => applyRange(24));
+      document.getElementById('last48HoursButton').addEventListener('click', () => applyRange(48));
+      document.getElementById('last72HoursButton').addEventListener('click', () => applyRange(72));
+      document.getElementById('last8DaysButton').addEventListener('click', () => applyRange(8 * 24));
 
       document.getElementById('resetRangeButton').addEventListener('click', function(){
         applyRange(currentRangeHours);
@@ -1156,14 +1257,6 @@
       document.getElementById('clusterCheckbox').addEventListener('change', function(){
         updateMap(mapData || rangeData, this.checked);
       });
-
-      // 🔄 Refrescar (sin caché)
-      document.getElementById("btnRefresh").addEventListener("click", function(){
-        _nocache += 1;
-        applyRange(currentRangeHours);
-      });
-
-      fixMapSize();
     })();
   </script>
 </body>
