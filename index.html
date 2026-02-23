@@ -1013,6 +1013,10 @@ apoyando procesos de evaluación, monitoreo y control en territorios bajo manejo
     var gglmps = L.tileLayer('https://mt1.google.com/vt/lyrs=r&x={x}&y={y}&z={z}', {
       attribution: '&copy; Google Maps'
     });
+	
+		/* ================== CAPAS SATELITALES (GOES-16) ================== */
+	const lyrVI = L.imageOverlay('https://storage.googleapis.com/meteotech/data/goes/a_goes16_01.gif?'+(Math.random()*1e6|0), [[35,-120],[0,-50]], {opacity:.6});
+	const lyrIR = L.imageOverlay('https://storage.googleapis.com/meteotech/data/goes/a_goes16_13.gif?'+(Math.random()*1e6|0), [[35,-120],[0,-50]], {opacity:.6});
 
     var capas = {
       '<big> 🌏 Google Hybrid</big>': osm,
@@ -1866,7 +1870,14 @@ apoyando procesos de evaluación, monitoreo y control en territorios bajo manejo
       '<span class="lc-heading">🧭 <big>Límites y Gestión</big></span>': HeadingLayer(),
       '<big> 🌲 Concesiones Forestales</big>': concesionesLayer,
       '<big> 🌿 Límite RBM</big>': rbmLayer,
+	  
+	    // Encabezado: Monitoreo Satelital
+  '<span class="lc-heading">🛰️ <big>Monitoreo Satelital</big></span>': HeadingLayer(),
+  '<big> 🛰️ Satélite IR</big>': lyrIR,
+  '<big> 🛰️ Satélite VIS</big>': lyrVI
     };
+	
+
 
     const controlCapas = L.control.layers(
       capas,
